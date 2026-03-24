@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { ClipsModule } from './clips/clips.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { BullModule } from '@nestjs/bullmq';
+import { VideosModule } from './videos/videos.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { BullModule } from '@nestjs/bullmq';
       },
     }),
     ClipsModule,
+    VideosModule,
   ],
   controllers: [AppController],
   providers: [AppService],

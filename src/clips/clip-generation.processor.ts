@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
+import { Job, UnrecoverableError } from 'bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Clip } from './clip.entity';
 import { calculateViralityScore } from './virality-score.util';
@@ -73,6 +73,10 @@ export class ClipGenerationProcessor extends WorkerHost {
     const data = job.data;
     const durationSeconds = data.endTime - data.startTime;
     const clipId = `${data.videoId}-${data.startTime}-${data.endTime}`;
+    const JOB_TIMEOUT_MS = 30 * 60 * 1000;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), JOB_TIMEOUT_MS);
+    this.clipsService._registerJobController(data.videoId, String(job.id ?? ''), controller);
 
     this.logger.log(
       `Processing clip job ${job.id} — attempt ${job.attemptsMade + 1}/${job.opts.attempts ?? 1} ` +
@@ -89,6 +93,7 @@ export class ClipGenerationProcessor extends WorkerHost {
         startTime: data.startTime,
         endTime: data.endTime,
         videoDuration: data.videoDuration,
+        signal: controller.signal,
       });
       await job.updateProgress(50);
 
@@ -107,10 +112,13 @@ export class ClipGenerationProcessor extends WorkerHost {
 
       // Upload to Cloudinary with 2 retries
       await job.updateProgress(80);
-      const uploadResult = await this.uploadToCloudinary(
-        data.outputPath,
-        clipId,
-      );
+      const abortPromise = new Promise<never>((_, reject) => {
+        controller.signal.addEventListener('abort', () => reject(new Error('Aborted')), { once: true });
+      });
+      const uploadResult = await Promise.race([
+        this.uploadToCloudinary(data.outputPath, clipId),
+        abortPromise,
+      ]);
 
       if (uploadResult.error) {
         // Upload failed after all retries - keep local file as fallback
@@ -188,7 +196,18 @@ export class ClipGenerationProcessor extends WorkerHost {
         }
       }
 
-      // Re-throw to trigger BullMQ retry logic
+      if (controller.signal.aborted) {
+        const cancelled = this.clipsService._isVideoCancelled(data.videoId);
+        clearTimeout(timeout);
+        this.clipsService._clearJobController(String(job.id ?? ''));
+        if (cancelled) {
+          throw new UnrecoverableError('Cancelled by user');
+        } else {
+          throw new UnrecoverableError('Timeout');
+        }
+      }
+      clearTimeout(timeout);
+      this.clipsService._clearJobController(String(job.id ?? ''));
       throw error;
     }
   }

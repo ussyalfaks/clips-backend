@@ -12,6 +12,7 @@ export interface CutClipOptions {
   endTime: number;
   /** Total duration of the source video in seconds (used for edge-case clamping) */
   videoDuration?: number;
+  signal?: AbortSignal;
 }
 
 /**
@@ -55,12 +56,31 @@ export function cutClip(options: CutClipOptions): Promise<string> {
   );
 
   return new Promise((resolve, reject) => {
-    ffmpeg(inputPath)
-      .seekInput(startSeconds)   // -ss <start>  (input-side seek for accuracy)
-      .duration(durationSeconds) // -t  <duration>
+    const cmd = ffmpeg(inputPath)
+      .seekInput(startSeconds)
+      .duration(durationSeconds)
       .output(outputPath)
-      .on('end', () => resolve(outputPath))
-      .on('error', (err: Error) => reject(err))
-      .run();
+      .on('end', () => {
+        resolve(outputPath);
+      })
+      .on('error', (err: Error) => {
+        reject(err);
+      });
+
+    if (options.signal) {
+      const onAbort = () => {
+        try {
+          cmd.kill('SIGKILL');
+        } catch {}
+        reject(new Error('Aborted'));
+      };
+      if (options.signal.aborted) {
+        onAbort();
+        return;
+      }
+      options.signal.addEventListener('abort', onAbort, { once: true });
+    }
+
+    cmd.run();
   });
 }

@@ -47,6 +47,9 @@ export class ClipsService {
   /** In-memory stores — replace with Prisma repositories when DB is wired up */
   private readonly clips: Clip[] = [];
   private readonly videos: Map<string, Video> = new Map();
+  private readonly videoJobs: Map<string, Set<string>> = new Map();
+  private readonly jobControllers: Map<string, AbortController> = new Map();
+  private readonly cancelledVideos: Set<string> = new Set();
 
   constructor(
     @InjectQueue(CLIP_GENERATION_QUEUE)
@@ -65,6 +68,11 @@ export class ClipsService {
    */
   async enqueueClip(job: ClipGenerationJob): Promise<{ jobId: string | undefined }> {
     const bullJob = await this.clipQueue.add('generate', job, CLIP_JOB_OPTIONS);
+    if (bullJob?.id && job.videoId) {
+      const set = this.videoJobs.get(job.videoId) ?? new Set<string>();
+      set.add(String(bullJob.id));
+      this.videoJobs.set(job.videoId, set);
+    }
     return { jobId: bullJob.id };
   }
 
@@ -79,9 +87,11 @@ export class ClipsService {
   handleClipGenerationFailed(payload: ClipGenerationFailedPayload): void {
     const video = this.videos.get(payload.videoId);
     if (video) {
-      video.status = 'failed';
-      video.processingError = payload.failedReason;
-      video.updatedAt = new Date();
+      if (video.status !== 'cancelled') {
+        video.status = 'failed';
+        video.processingError = payload.failedReason;
+        video.updatedAt = new Date();
+      }
     }
     // TODO: trigger user notification (email / push) using payload.videoId + payload.failedReason
   }
@@ -381,5 +391,54 @@ export class ClipsService {
 
   _getVideo(id: string): Video | undefined {
     return this.videos.get(id);
+  }
+
+  _registerJobController(videoId: string, jobId: string, controller: AbortController): void {
+    if (jobId) {
+      this.jobControllers.set(jobId, controller);
+    }
+    if (videoId) {
+      const set = this.videoJobs.get(videoId) ?? new Set<string>();
+      set.add(jobId);
+      this.videoJobs.set(videoId, set);
+    }
+  }
+
+  _clearJobController(jobId: string): void {
+    this.jobControllers.delete(jobId);
+  }
+
+  _isVideoCancelled(videoId: string): boolean {
+    return this.cancelledVideos.has(videoId);
+  }
+
+  async cancelVideo(videoId: string): Promise<{ cancelled: boolean; removedJobs: number; abortedJobs: number }> {
+    const video = this.videos.get(videoId);
+    if (video) {
+      video.status = 'cancelled';
+      video.processingError = null;
+      video.updatedAt = new Date();
+    }
+    this.cancelledVideos.add(videoId);
+    const jobIds = [...(this.videoJobs.get(videoId) ?? new Set<string>())];
+    let removedJobs = 0;
+    let abortedJobs = 0;
+    for (const id of jobIds) {
+      const controller = this.jobControllers.get(id);
+      if (controller) {
+        try {
+          controller.abort();
+          abortedJobs++;
+        } catch {}
+      }
+      try {
+        const job = await this.clipQueue.getJob(id);
+        if (job) {
+          await job.remove();
+          removedJobs++;
+        }
+      } catch {}
+    }
+    return { cancelled: true, removedJobs, abortedJobs };
   }
 }
