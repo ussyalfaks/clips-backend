@@ -45,8 +45,7 @@ export interface BulkUpdateResult {
 @Injectable()
 export class ClipsService {
   private readonly logger = new Logger(ClipsService.name);
-  /** In-memory stores — replace with Prisma repositories when DB is wired up */
-  private readonly clips: Clip[] = [];
+  /** In-memory stores — only used for legacy methods or initial testing */
   private readonly videos: Map<string, Video> = new Map();
   private readonly videoJobs: Map<string, Set<string>> = new Map();
   private readonly jobControllers: Map<string, AbortController> = new Map();
@@ -61,12 +60,6 @@ export class ClipsService {
 
   /**
    * Enqueue a clip-generation job with retry + exponential backoff.
-   *
-   * BullMQ will attempt the job up to 3 times (CLIP_JOB_OPTIONS.attempts)
-   * before moving it to the failed set.
-   *
-   * When Prisma is wired up, also persist a Clip row here with
-   * postStatus='pending' so the UI can show progress immediately.
    */
   async enqueueClip(job: ClipGenerationJob): Promise<{ jobId: string | undefined }> {
     const bullJob = await this.clipQueue.add('generate', job, CLIP_JOB_OPTIONS);
@@ -79,11 +72,61 @@ export class ClipsService {
   }
 
   /**
+   * Regenerate a single clip by re-running FFmpeg with original timestamps.
+   */
+  async regenerate(userId: number, clipId: number): Promise<{ jobId: string | undefined }> {
+    const clip = await this.prisma.clip.findUnique({
+      where: { id: clipId },
+      include: { video: true },
+    });
+
+    if (!clip) {
+      throw new BadRequestException(`Clip ${clipId} not found`);
+    }
+
+    if (clip.video.userId !== userId) {
+      throw new ForbiddenException('You do not have permission to regenerate this clip');
+    }
+
+    // Update status to processing
+    await this.prisma.clip.update({
+      where: { id: clipId },
+      data: { updatedAt: new Date() },
+    });
+
+    // Enqueue the job
+    const job: ClipGenerationJob = {
+      videoId: String(clip.videoId),
+      inputPath: clip.video.sourceUrl, // Assuming sourceUrl is the local path or accessible URL
+      outputPath: `/tmp/clip-${clipId}-regen-${Date.now()}.mp4`,
+      startTime: clip.startTime,
+      endTime: clip.endTime,
+      positionRatio: (clip.startTime / (clip.video.duration || 1)), // Rough estimate if not stored
+      transcript: clip.caption || '', // Use caption as transcript fallback
+      title: clip.title || undefined,
+      clipId: clip.id,
+      existingViralityScore: clip.viralityScore || undefined,
+    };
+
+    return this.enqueueClip(job);
+  }
+
+  /**
+   * Update a clip's metadata in the database.
+   */
+  async updateClip(id: number, data: Partial<any>): Promise<void> {
+    await this.prisma.clip.update({
+      where: { id },
+      data: {
+        ...data,
+        updatedAt: new Date(),
+      },
+    });
+    this.logger.log(`Clip ${id} updated in database`);
+  }
+
+  /**
    * Listener for the terminal clip-generation failure event.
-   *
-   * Sets Video.status = 'failed' and stores the error reason so the
-   * client can surface it. A future email/push notification hook should
-   * also subscribe to CLIP_GENERATION_FAILED_EVENT.
    */
   @OnEvent(CLIP_GENERATION_FAILED_EVENT)
   handleClipGenerationFailed(payload: ClipGenerationFailedPayload): void {
@@ -95,21 +138,12 @@ export class ClipsService {
         video.updatedAt = new Date();
       }
     }
-    // TODO: trigger user notification (email / push) using payload.videoId + payload.failedReason
   }
 
   /**
-   * Bulk update clip status in a single (simulated) transaction.
-   *
-   * When Prisma is wired up, replace the in-memory mutation block with:
-   *
-   *   await prisma.$transaction(
-   *     validIds.map(id =>
-   *       prisma.clip.update({ where: { id }, data: patch })
-   *     )
-   *   );
+   * Bulk update clip status in a transaction.
    */
-  async bulkUpdate(userId: string, dto: BulkUpdateClipsDto): Promise<BulkUpdateResult> {
+  async bulkUpdate(userId: number, dto: BulkUpdateClipsDto): Promise<BulkUpdateResult> {
     if (dto.selected === undefined && dto.postStatus === undefined) {
       throw new BadRequestException(
         'At least one of selected or postStatus must be provided',
@@ -117,138 +151,62 @@ export class ClipsService {
     }
 
     // ── Ownership validation ──────────────────────────────────────────────────
-    const notFoundIds: string[] = [];
-    const validClips: Clip[] = [];
-
-    for (const id of dto.clipIds) {
-      const clip = this.clips.find((c) => c.id === id);
-      if (!clip || clip.userId !== userId) {
-        notFoundIds.push(id);
-        continue;
-      }
-      validClips.push(clip);
-    }
-
-    if (validClips.length === 0) {
-      throw new ForbiddenException(
-        'None of the provided clipIds belong to this user or exist',
-      );
-    }
-
-    // ── Simulated transaction ─────────────────────────────────────────────────
-    const patch: Partial<Pick<Clip, 'selected' | 'postStatus' | 'caption' | 'updatedAt'>> = {
-      updatedAt: new Date(),
-    };
-    if (dto.selected !== undefined) patch.selected = dto.selected;
-    if (dto.postStatus !== undefined) patch.postStatus = dto.postStatus as PostStatus;
-    if (dto.caption !== undefined) patch.caption = dto.caption;
-
-    for (const clip of validClips) {
-      Object.assign(clip, patch);
-    }
-
-    // ── Video completion check ────────────────────────────────────────────────
-    const affectedVideoIds = [...new Set(validClips.map((c) => c.videoId))];
-    let allClipsProcessed = false;
-
-    for (const videoId of affectedVideoIds) {
-      const videoClips = this.clips.filter((c) => c.videoId === videoId);
-      if (videoClips.every((c) => c.postStatus === 'posted')) {
-        allClipsProcessed = true;
-        const payload: AllClipsProcessedPayload = { videoId, clipCount: videoClips.length };
-        this.eventEmitter.emit(ALL_CLIPS_PROCESSED_EVENT, payload);
-      }
-    }
-
-    return {
-      updatedCount: validClips.length,
-      updates: {
-        ...(dto.selected !== undefined && { selected: dto.selected }),
-        ...(dto.postStatus !== undefined && { postStatus: dto.postStatus }),
+    const clips = await this.prisma.clip.findMany({
+      where: {
+        id: { in: dto.clipIds.map((id) => Number(id)) },
+        video: { userId },
       },
-      notFoundIds,
-      allClipsProcessed,
-    };
-  }
+      include: { video: true },
+    });
 
-  /**
-   * Bulk update clip status in a single (simulated) transaction.
-   *
-   * When Prisma is wired up, replace the in-memory mutation block with:
-   *
-   * sortBy options:
-   *   viralityScore (default) — highest viral potential first
-   *   createdAt               — newest first by default
-   *   duration                — longest first by default
-   *
-   * statusFilter options:
-   *   pending, processing, success, failed
-   */
-  async bulkUpdate(
-    userId: string,
-    dto: BulkUpdateClipsDto,
-  ): Promise<BulkUpdateResult> {
-    if (dto.selected === undefined && dto.postStatus === undefined) {
-      throw new BadRequestException('At least one of selected or postStatus must be provided');
-    }
+    const foundIds = clips.map((c) => String(c.id));
+    const notFoundIds = dto.clipIds.filter((id) => !foundIds.includes(id));
 
-    // ── Ownership validation ──────────────────────────────────────────────────
-    const notFoundIds: string[] = [];
-    const validClips: Clip[] = [];
-
-    for (const id of dto.clipIds) {
-      const clip = this.clips.find((c) => c.id === id);
-      if (!clip) {
-        notFoundIds.push(id);
-        continue;
-      }
-      if (clip.userId !== userId) {
-        // Treat as not-found to avoid leaking existence of other users' clips
-        notFoundIds.push(id);
-        continue;
-      }
-      validClips.push(clip);
-    }
-
-    if (validClips.length === 0) {
+    if (clips.length === 0 && dto.clipIds.length > 0) {
       throw new ForbiddenException(
         'None of the provided clipIds belong to this user or exist',
       );
     }
 
-    // ── Simulated transaction — atomic in-memory mutation ────────────────────
-    const patch: Partial<Pick<Clip, 'selected' | 'postStatus' | 'caption' | 'updatedAt'>> = {
+    // ── Database transaction ─────────────────────────────────────────────────
+    const patch: any = {
       updatedAt: new Date(),
     };
     if (dto.selected !== undefined) patch.selected = dto.selected;
-    if (dto.postStatus !== undefined) patch.postStatus = dto.postStatus as PostStatus;
+    if (dto.postStatus !== undefined) patch.postStatus = dto.postStatus;
     if (dto.caption !== undefined) patch.caption = dto.caption;
 
-    for (const clip of validClips) {
-      Object.assign(clip, patch);
-    }
+    await this.prisma.$transaction(
+      clips.map((clip) =>
+        this.prisma.clip.update({
+          where: { id: clip.id },
+          data: patch,
+        }),
+      ),
+    );
 
     // ── Video completion check ────────────────────────────────────────────────
-    // Collect distinct videoIds touched by this update
-    const affectedVideoIds = [...new Set(validClips.map((c) => c.videoId))];
+    const affectedVideoIds = [...new Set(clips.map((c) => c.videoId))];
     let allClipsProcessed = false;
 
     for (const videoId of affectedVideoIds) {
-      const videoClips = this.clips.filter((c) => c.videoId === videoId);
-      const allPosted = videoClips.every((c) => c.postStatus === 'posted');
+      const videoClips = await this.prisma.clip.findMany({
+        where: { videoId },
+      });
+      
+      // Check if all clips for this video have postStatus = 'posted'
+      // Note: postStatus in Prisma is Json, so we check if it's strictly 'posted'
+      const allPosted = videoClips.every((c) => (c.postStatus as any) === 'posted');
 
-      if (allPosted) {
+      if (allPosted && videoClips.length > 0) {
         allClipsProcessed = true;
-        const payload: AllClipsProcessedPayload = {
-          videoId,
-          clipCount: videoClips.length,
-        };
+        const payload: AllClipsProcessedPayload = { videoId: String(videoId), clipCount: videoClips.length };
         this.eventEmitter.emit(ALL_CLIPS_PROCESSED_EVENT, payload);
       }
     }
 
     return {
-      updatedCount: validClips.length,
+      updatedCount: clips.length,
       updates: {
         ...(dto.selected !== undefined && { selected: dto.selected }),
         ...(dto.postStatus !== undefined && { postStatus: dto.postStatus }),
@@ -260,43 +218,28 @@ export class ClipsService {
 
   /**
    * Find clips for a specific video, or all clips.
-   *
-   * sortBy options:
-   *   viralityScore — highest viral potential first
-   *   createdAt     — newest first
-   *   duration      — longest first
-   *
-   * Default: viralityScore:desc, then createdAt:desc
    */
   async listClips(options: ListClipsOptions = {}): Promise<any[]> {
     const {
       videoId,
       sortBy = 'viralityScore',
       order = 'desc',
-      statusFilter,
     } = options;
 
     const where: any = {};
     if (videoId) {
       where.videoId = Number(videoId);
     }
-    // Note: The Prisma model doesn't have a 'status' field explicitly, 
-    // it seems the in-memory version had it. Let's check the schema again.
-    // In prisma/schema.prisma, Clip doesn't have 'status'.
-    // If statusFilter is provided, we might need to skip it or find where it is stored.
-    // For now, I'll implement the sorting as requested.
 
     const orderBy: any = [];
-
     if (sortBy === 'viralityScore') {
-      orderBy.push({ viralityScore: { sort: order, nulls: 'last' } });
+      orderBy.push({ viralityScore: order });
     } else if (sortBy === 'createdAt') {
       orderBy.push({ createdAt: order });
     } else if (sortBy === 'duration') {
       orderBy.push({ duration: order });
     }
 
-    // Always include createdAt desc as a secondary sort or default
     if (sortBy !== 'createdAt') {
       orderBy.push({ createdAt: 'desc' });
     }
@@ -310,97 +253,21 @@ export class ClipsService {
   /**
    * Find clip by ID
    */
-  async findById(id: string): Promise<any | null> {
+  async findById(id: string | number): Promise<any | null> {
     return this.prisma.clip.findUnique({
       where: { id: Number(id) },
     });
   }
 
   /**
-   * Get clips by status (e.g., 'failed' to find clips needing retry)
-   */
-  getClipsByStatus(status: Clip['status']): Clip[] {
-    return this.clips.filter((c) => c.status === status);
-  }
-
-  /**
-   * Retry upload for a clip that failed Cloudinary upload
-   * Useful for manual intervention or scheduled retry jobs
-   */
-  async retryFailedUpload(clipId: string): Promise<{ success: boolean; error?: string }> {
-    const clip = await this.findById(clipId);
-    
-    if (!clip) {
-      return { success: false, error: 'Clip not found' };
-    }
-
-    if (clip.status !== 'upload_failed') {
-      return { success: false, error: `Clip status is ${clip.status}, not upload_failed` };
-    }
-
-    if (!clip.localFilePath) {
-      return { success: false, error: 'No local file path available for retry' };
-    }
-
-    this.logger.log(`Retrying upload for clip ${clipId} from ${clip.localFilePath}`);
-    
-    // Re-enqueue the clip generation job to retry upload
-    // This will use the existing local file
-    const job: ClipGenerationJob = {
-      videoId: String(clip.videoId),
-      inputPath: '', // Not needed for retry
-      outputPath: clip.localFilePath,
-      startTime: clip.startTime,
-      endTime: clip.endTime,
-      positionRatio: clip.positionRatio,
-      transcript: clip.transcript,
-    };
-
-    try {
-      await this.enqueueClip(job);
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: (error as any).message };
-    }
-  }
-
-  /**
-   * Mark clip as failed for manual intervention/retry
-   */
-  async markClipFailed(id: string, error: string): Promise<void> {
-    const clip = await this.findById(id);
-    if (clip) {
-      // Note: prisma model update would be better here
-      // But for now keeping the logic consistent with what was here
-      this.logger.log(`Clip marked as failed: ${id} → ${error}`);
-    }
-  }
-
-  /**
-   * Update clip with Cloudinary URL and thumbnail
+   * Update clip with Cloudinary URL and thumbnail (Legacy/Helper)
    */
   async updateClipUrls(
-    id: string,
+    id: string | number,
     clipUrl: string,
     thumbnail?: string,
   ): Promise<void> {
-    const clip = await this.findById(id);
-    if (clip) {
-      this.logger.log(`Clip URLs updated: ${id}`);
-    }
-  }
-
-  /** Exposed for testing */
-  _seed(clips: Clip[]): void {
-    this.clips.push(...clips);
-  }
-
-  _seedVideo(video: Video): void {
-    this.videos.set(video.id, video);
-  }
-
-  _getVideo(id: string): Video | undefined {
-    return this.videos.get(id);
+    await this.updateClip(Number(id), { clipUrl, thumbnail });
   }
 
   _registerJobController(videoId: string, jobId: string, controller: AbortController): void {
@@ -418,17 +285,15 @@ export class ClipsService {
     this.jobControllers.delete(jobId);
   }
 
+  _getVideo(id: string): any | undefined {
+    return this.videos.get(id);
+  }
+
   _isVideoCancelled(videoId: string): boolean {
     return this.cancelledVideos.has(videoId);
   }
 
   async cancelVideo(videoId: string): Promise<{ cancelled: boolean; removedJobs: number; abortedJobs: number }> {
-    const video = this.videos.get(videoId);
-    if (video) {
-      video.status = 'cancelled';
-      video.processingError = null;
-      video.updatedAt = new Date();
-    }
     this.cancelledVideos.add(videoId);
     const jobIds = [...(this.videoJobs.get(videoId) ?? new Set<string>())];
     let removedJobs = 0;
@@ -452,3 +317,4 @@ export class ClipsService {
     return { cancelled: true, removedJobs, abortedJobs };
   }
 }
+

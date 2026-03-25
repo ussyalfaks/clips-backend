@@ -102,8 +102,19 @@ export class ClipsController {
    */
   @Post('bulk-update')
   bulkUpdate(@Body() dto: BulkUpdateClipsDto, @Req() req: Request) {
-    const userId: string =
-      (req as any).user?.id ?? (req.headers['x-user-id'] as string) ?? 'anonymous';
+    const userId: number =
+      Number((req as any).user?.id ?? (req.headers['x-user-id'] as string) ?? 0);
     return this.clipsService.bulkUpdate(userId, dto);
+  }
+
+  /**
+   * POST /clips/:id/regenerate
+   * Re-run FFmpeg cut for a single clip using original timestamps.
+   */
+  @Post(':id/regenerate')
+  regenerate(@Param('id') id: string, @Req() req: Request) {
+    const userId: number =
+      Number((req as any).user?.id ?? (req.headers['x-user-id'] as string) ?? 0);
+    return this.clipsService.regenerate(userId, Number(id));
   }
 }

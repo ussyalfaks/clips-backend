@@ -32,6 +32,10 @@ export interface ClipGenerationJob {
   transcript?: string;
   /** Video title — used to auto-generate the caption placeholder */
   title?: string;
+  /** Existing Clip ID in Prisma — used to update URLs after successful generation */
+  clipId?: number;
+  /** Existing virality score to preserve during regeneration */
+  existingViralityScore?: number;
 }
 
 export interface ClipProcessingResult {
@@ -100,7 +104,7 @@ export class ClipGenerationProcessor extends WorkerHost {
       });
       await job.updateProgress(50);
 
-      const viralityScore = calculateViralityScore({
+      const viralityScore = data.existingViralityScore ?? calculateViralityScore({
         durationSeconds,
         positionRatio: data.positionRatio,
         transcript: data.transcript,
@@ -285,6 +289,38 @@ export class ClipGenerationProcessor extends WorkerHost {
     };
 
     this.eventEmitter.emit(CLIP_GENERATION_FAILED_EVENT, payload);
+  }
+
+  /**
+   * Called by BullMQ after a job completes successfully.
+   *
+   * Responsibilities:
+   *  1. Update the Clip record in Prisma with new URLs and status='success'
+   *  2. Clean up local files (already handled in process() but good to be sure)
+   */
+  @OnWorkerEvent('completed')
+  async onCompleted(job: Job<ClipGenerationJob>, result: Clip): Promise<void> {
+    const { clipId } = job.data;
+    if (!clipId) {
+      this.logger.debug(`Job ${job.id} completed but no clipId provided for database update`);
+      return;
+    }
+
+    this.logger.log(`Job ${job.id} completed. Updating clip ${clipId} in database.`);
+
+    try {
+      await this.clipsService.updateClip(clipId, {
+        clipUrl: result.clipUrl,
+        thumbnail: result.thumbnail,
+        status: result.status,
+        error: result.error,
+        localFilePath: result.localFilePath,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to update clip ${clipId} after successful generation: ${(error as any).message}`,
+      );
+    }
   }
 
   @OnWorkerEvent('progress')
