@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { getVideoMetadata } from '../clips/ffmpeg.util';
 
 type ViralMoment = { start: number; end: number; reason: string };
 
@@ -13,6 +14,17 @@ export class VideoService {
   async detectViralTimestamps(videoId: number): Promise<ViralMoment[]> {
     const video = await this.prisma.video.findUnique({ where: { id: videoId } });
     if (!video) throw new Error(`Video ${videoId} not found`);
+
+    // --- Video metadata extraction ---
+    let metadata;
+    try {
+      if (video.sourceUrl) {
+        metadata = await getVideoMetadata(video.sourceUrl);
+        this.logger.log(`Metadata extracted for video ${videoId}: ${JSON.stringify(metadata)}`);
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to extract metadata for video ${videoId}: ${e.message}`);
+    }
 
     const apiKey = this.config.get<string>('ANTHROPIC_API_KEY') || process.env.ANTHROPIC_API_KEY;
     const model = this.config.get<string>('ANTHROPIC_MODEL') || 'claude-4.1';
@@ -95,13 +107,18 @@ export class VideoService {
     await this.prisma.video.update({
       where: { id: videoId },
       data: {
-        processingStats: ({
+        duration: metadata?.duration ? Math.round(metadata.duration) : video.duration,
+        processingStats: {
+          ...(video.processingStats as any),
+          originalDuration: metadata?.duration,
+          resolution: metadata?.resolution,
+          format: metadata?.format,
           viralMoments: normalized,
           ai: { provider, model },
           usage,
           lastDetectionAt: new Date().toISOString(),
           error,
-        } as any),
+        } as any,
       },
     });
 

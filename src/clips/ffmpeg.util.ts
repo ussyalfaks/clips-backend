@@ -15,6 +15,48 @@ export interface CutClipOptions {
   signal?: AbortSignal;
 }
 
+export interface VideoMetadata {
+  duration: number;
+  width: number;
+  height: number;
+  format: string;
+  resolution: string;
+}
+
+/**
+ * Extracts video metadata using ffprobe.
+ * Returns duration, width, height, format, and resolution.
+ */
+export async function getVideoMetadata(inputPath: string): Promise<VideoMetadata> {
+  return new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(inputPath, (err, metadata) => {
+      if (err) {
+        return reject(err);
+      }
+
+      const format = metadata.format;
+      const stream = metadata.streams.find((s) => s.codec_type === 'video');
+
+      if (!stream) {
+        return reject(new Error('No video stream found'));
+      }
+
+      const duration = parseFloat(format.duration?.toString() || '0');
+      const width = stream.width || 0;
+      const height = stream.height || 0;
+      const formatName = format.format_name || 'unknown';
+
+      resolve({
+        duration,
+        width,
+        height,
+        format: formatName,
+        resolution: `${width}x${height}`,
+      });
+    });
+  });
+}
+
 /**
  * Sanitises float startTime/endTime values before passing them to FFmpeg.
  *

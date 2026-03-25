@@ -1,5 +1,5 @@
 import ffmpegLib from 'fluent-ffmpeg';
-import { cutClip } from './ffmpeg.util';
+import { cutClip, getVideoMetadata } from './ffmpeg.util';
 
 // ── Mock fluent-ffmpeg ────────────────────────────────────────────────────────
 const mockRun = jest.fn();
@@ -7,6 +7,7 @@ const mockOn = jest.fn();
 const mockOutput = jest.fn();
 const mockDuration = jest.fn();
 const mockSeekInput = jest.fn();
+const mockFfprobe = jest.fn();
 
 // Each builder method returns `this` so calls can be chained
 mockSeekInput.mockReturnValue({ duration: mockDuration });
@@ -27,6 +28,7 @@ mockRun.mockImplementation(() => {
 
 jest.mock('fluent-ffmpeg', () => {
   const mock = jest.fn(() => ({ seekInput: mockSeekInput }));
+  (mock as any).ffprobe = mockFfprobe;
   return { default: mock, __esModule: true };
 });
 
@@ -131,5 +133,46 @@ describe('cutClip', () => {
 
     expect(getSeekArg()).toBe(12.5);
     expect(getDurationArg()).toBeCloseTo(33.2, 3);
+  });
+});
+
+describe('getVideoMetadata', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('returns correctly parsed metadata on success', async () => {
+    const mockMetadata = {
+      format: { duration: '120.5', format_name: 'mov,mp4,m4a,3gp,3g2,mj2' },
+      streams: [{ codec_type: 'video', width: 1920, height: 1080 }],
+    };
+    mockFfprobe.mockImplementation((path, cb) => cb(null, mockMetadata));
+
+    const result = await getVideoMetadata('video.mp4');
+
+    expect(result).toEqual({
+      duration: 120.5,
+      width: 1920,
+      height: 1080,
+      format: 'mov,mp4,m4a,3gp,3g2,mj2',
+      resolution: '1920x1080',
+    });
+    expect(mockFfprobe).toHaveBeenCalledWith('video.mp4', expect.any(Function));
+  });
+
+  it('rejects when ffprobe fails', async () => {
+    mockFfprobe.mockImplementation((path, cb) => cb(new Error('ffprobe error'), null));
+
+    await expect(getVideoMetadata('bad.mp4')).rejects.toThrow('ffprobe error');
+  });
+
+  it('rejects when no video stream is found', async () => {
+    const mockMetadata = {
+      format: { duration: '60', format_name: 'mp3' },
+      streams: [{ codec_type: 'audio' }],
+    };
+    mockFfprobe.mockImplementation((path, cb) => cb(null, mockMetadata));
+
+    await expect(getVideoMetadata('audio.mp3')).rejects.toThrow('No video stream found');
   });
 });
