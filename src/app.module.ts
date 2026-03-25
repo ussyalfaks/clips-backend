@@ -8,6 +8,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { VideosModule } from './videos/videos.module';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { JobsModule } from './jobs/jobs.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { PrismaModule } from './prisma/prisma.module';
     AuthModule,
     ClipsModule,
     VideosModule,
+    JobsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
