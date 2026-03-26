@@ -15,6 +15,7 @@ import type { ClipSortField, SortOrder } from './clips.service.js';
 import type { ClipGenerationJob } from './clip-generation.processor.js';
 import type { BulkUpdateClipsDto } from './dto/bulk-update-clips.dto.js';
 import { LoginGuard } from '../auth/guards/login.guard.js';
+import { BulkDeleteClipsDto } from './dto/bulk-delete-clips.dto.js';
 
 @UseGuards(LoginGuard)
 @Controller('clips')
@@ -105,6 +106,13 @@ export class ClipsController {
     const userId: number =
       Number((req as any).user?.id ?? (req.headers['x-user-id'] as string) ?? 0);
     return this.clipsService.bulkUpdate(userId, dto);
+  }
+
+  @Post('bulk-delete')
+  bulkDelete(@Body() dto: BulkDeleteClipsDto, @Req() req: Request) {
+    const userId: number =
+      Number((req as any).user?.id ?? (req.headers['x-user-id'] as string) ?? 0);
+    return this.clipsService.bulkDeleteRejected(userId, dto.clipIds);
   }
 
   /**

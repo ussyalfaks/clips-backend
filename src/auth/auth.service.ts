@@ -5,6 +5,9 @@ import { MailService } from './mail.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { SignupDto } from './dto/signup.dto';
+import { LoginDto } from './dto/login.dto';
+import * as speakeasy from 'speakeasy';
+import * as QRCode from 'qrcode';
 
 type JwtUser = { id: number; email: string | null };
 
@@ -171,6 +174,50 @@ export class AuthService {
     };
   }
 
+  async login(dto: LoginDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (!user?.password) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const matches = await bcrypt.compare(dto.password, user.password);
+    if (!matches) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (user.mfaEnabled) {
+      if (!dto.totpCode || !user.mfaSecret) {
+        throw new UnauthorizedException('TOTP code is required');
+      }
+
+      const isTotpValid = speakeasy.totp.verify({
+        secret: user.mfaSecret,
+        encoding: 'base32',
+        token: dto.totpCode,
+        window: 1,
+      });
+
+      if (!isTotpValid) {
+        throw new UnauthorizedException('Invalid TOTP code');
+      }
+    }
+
+    const tokens = await this.issueTokensWithRefresh({ id: user.id, email: user.email });
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        picture: user.picture,
+        mfaEnabled: user.mfaEnabled,
+      },
+      tokens,
+    };
+  }
+
   async requestMagicLink(email: string): Promise<void> {
     // Find or create user — magic link works even for new users
     let user = await this.prisma.user.findUnique({ where: { email } });
@@ -228,5 +275,112 @@ export class AuthService {
       },
       tokens,
     };
+  }
+
+  async forgotPassword(email: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) return;
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    await this.prisma.passwordResetToken.create({
+      data: { userId: user.id, tokenHash, expiresAt },
+    });
+
+    await this.mailService.sendPasswordResetLink(email, rawToken);
+  }
+
+  async resetPassword(rawToken: string, newPassword: string): Promise<void> {
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const resetToken = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    if (!resetToken) {
+      throw new UnauthorizedException('Invalid reset token');
+    }
+
+    if (resetToken.usedAt) {
+      throw new UnauthorizedException('Reset token already used');
+    }
+
+    if (resetToken.expiresAt < new Date()) {
+      throw new UnauthorizedException('Reset token expired');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: resetToken.userId },
+        data: { password: hashedPassword },
+      }),
+      this.prisma.passwordResetToken.update({
+        where: { id: resetToken.id },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId: resetToken.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+  }
+
+  async setupMfa(userId: number) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const secret = speakeasy.generateSecret({
+      name: `ClipCash (${user.email})`,
+    });
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaSecret: secret.base32, mfaEnabled: false },
+    });
+
+    const qrCodeDataUrl = secret.otpauth_url
+      ? await QRCode.toDataURL(secret.otpauth_url)
+      : null;
+
+    return {
+      secret: secret.base32,
+      otpauthUrl: secret.otpauth_url,
+      qrCodeDataUrl,
+    };
+  }
+
+  async enableMfa(userId: number, code: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.mfaSecret) {
+      throw new BadRequestException('MFA setup is required before enabling');
+    }
+
+    const valid = speakeasy.totp.verify({
+      secret: user.mfaSecret,
+      encoding: 'base32',
+      token: code,
+      window: 1,
+    });
+
+    if (!valid) {
+      throw new UnauthorizedException('Invalid TOTP code');
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaEnabled: true },
+    });
+  }
+
+  async disableMfa(userId: number): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaEnabled: false, mfaSecret: null },
+    });
   }
 }

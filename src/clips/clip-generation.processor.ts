@@ -2,7 +2,7 @@ import { Logger } from '@nestjs/common';
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job, UnrecoverableError } from 'bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Clip } from './clip.entity';
+import type { Clip } from './clip.entity';
 import { calculateViralityScore } from './virality-score.util';
 import { cutClip, getVideoMetadata } from './ffmpeg.util';
 import { generateCaption } from './caption.util';

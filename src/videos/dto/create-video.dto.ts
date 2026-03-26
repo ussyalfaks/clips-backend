@@ -33,7 +33,7 @@ export class CreateVideoDto {
   @IsOptional()
   @IsArray()
   @IsValidPlatforms({
-    message: 'Invalid targetPlatforms. Must be an array of supported platforms.',
+    message: 'Invalid platform(s). Must be an array of supported platforms.',
   })
   @Transform(({ value }) => {
     if (!Array.isArray(value)) return value;

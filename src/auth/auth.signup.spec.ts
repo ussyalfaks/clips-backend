@@ -5,6 +5,7 @@ import { AuthController } from './auth.controller';
 import { SignupDto } from './dto/signup.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
+import { MailService } from './mail.service';
 import * as bcrypt from 'bcrypt';
 
 describe('Auth - Password Strength Validation', () => {
@@ -24,12 +25,22 @@ describe('Auth - Password Strength Validation', () => {
               findUnique: jest.fn(),
               create: jest.fn(),
             },
+            refreshToken: {
+              create: jest.fn(),
+            },
           },
         },
         {
           provide: JwtService,
           useValue: {
             sign: jest.fn().mockReturnValue('mock_token'),
+          },
+        },
+        {
+          provide: MailService,
+          useValue: {
+            sendMagicLink: jest.fn(),
+            sendPasswordResetLink: jest.fn(),
           },
         },
       ],

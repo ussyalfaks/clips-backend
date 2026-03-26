@@ -36,4 +36,23 @@ export class MailService {
 
     this.logger.log(`Magic link sent to ${email} — messageId: ${info.messageId}`);
   }
+
+  async sendPasswordResetLink(email: string, token: string): Promise<void> {
+    const baseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
+    const link = `${baseUrl}/reset-password?token=${token}`;
+
+    const info = await this.transporter.sendMail({
+      from: process.env.SMTP_FROM || '"Clips App" <noreply@clips.app>',
+      to: email,
+      subject: 'Reset your password',
+      text: `Click the link below to reset your password (expires in 1 hour):\n\n${link}`,
+      html: `
+        <p>Click the button below to reset your password. This link expires in <strong>1 hour</strong>.</p>
+        <a href="${link}" style="display:inline-block;padding:12px 24px;background:#6366f1;color:#fff;border-radius:6px;text-decoration:none;">Reset password</a>
+        <p>Or copy this URL: ${link}</p>
+      `,
+    });
+
+    this.logger.log(`Password reset link sent to ${email} — messageId: ${info.messageId}`);
+  }
 }

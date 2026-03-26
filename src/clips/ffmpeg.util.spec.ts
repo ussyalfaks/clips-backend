@@ -2,12 +2,12 @@ import ffmpegLib from 'fluent-ffmpeg';
 import { cutClip, getVideoMetadata } from './ffmpeg.util';
 
 // ── Mock fluent-ffmpeg ────────────────────────────────────────────────────────
-const mockRun = jest.fn();
-const mockOn = jest.fn();
-const mockOutput = jest.fn();
-const mockDuration = jest.fn();
-const mockSeekInput = jest.fn();
-const mockFfprobe = jest.fn();
+var mockRun = jest.fn();
+var mockOn = jest.fn();
+var mockOutput = jest.fn();
+var mockDuration = jest.fn();
+var mockSeekInput = jest.fn();
+var mockFfprobe = jest.fn();
 
 // Each builder method returns `this` so calls can be chained
 mockSeekInput.mockReturnValue({ duration: mockDuration });
@@ -27,8 +27,8 @@ mockRun.mockImplementation(() => {
 });
 
 jest.mock('fluent-ffmpeg', () => {
-  const mock = jest.fn(() => ({ seekInput: mockSeekInput }));
-  (mock as any).ffprobe = mockFfprobe;
+  const mock: any = jest.fn(() => ({ seekInput: mockSeekInput }));
+  mock.ffprobe = (...args: any[]) => mockFfprobe(...args);
   return { default: mock, __esModule: true };
 });
 

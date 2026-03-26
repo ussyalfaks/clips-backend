@@ -8,6 +8,7 @@ import { CLIP_JOB_OPTIONS } from './clip-generation.queue';
 
 jest.mock('./ffmpeg.util', () => ({
   cutClip: jest.fn().mockResolvedValue('out.mp4'),
+  getVideoMetadata: jest.fn().mockResolvedValue({ duration: 30 }),
 }));
 
 jest.mock('./virality-score.util', () => ({
@@ -51,6 +52,7 @@ function makeJob(overrides: Partial<Job<ClipGenerationJob>> = {}): Job<ClipGener
     attemptsMade: 0,
     failedReason: undefined,
     opts: { attempts: CLIP_JOB_OPTIONS.attempts },
+    updateProgress: jest.fn(),
     ...overrides,
   } as unknown as Job<ClipGenerationJob>;
 }
@@ -58,11 +60,24 @@ function makeJob(overrides: Partial<Job<ClipGenerationJob>> = {}): Job<ClipGener
 function makeProcessor() {
   const emitter = new EventEmitter2();
   const cloudinaryService = new MockCloudinaryService();
+  const clipsGateway = { emitProgressToUser: jest.fn() };
+  const clipsService = {
+    _registerJobController: jest.fn(),
+    _clearJobController: jest.fn(),
+    _isVideoCancelled: jest.fn().mockReturnValue(false),
+    _getVideo: jest.fn().mockReturnValue({ userId: 1 }),
+    updateClip: jest.fn(),
+  };
   jest.spyOn(emitter, 'emit');
   jest.spyOn(cloudinaryService, 'uploadVideoFromBuffer');
   jest.spyOn(cloudinaryService, 'deleteLocalFile');
-  const processor = new ClipGenerationProcessor(cloudinaryService as any, emitter);
-  return { processor, emitter, cloudinaryService };
+  const processor = new ClipGenerationProcessor(
+    cloudinaryService as any,
+    emitter,
+    clipsGateway as any,
+    clipsService as any,
+  );
+  return { processor, emitter, cloudinaryService, clipsService };
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
