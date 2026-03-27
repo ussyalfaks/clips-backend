@@ -13,6 +13,8 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
+import { DeviceFingerprintService } from './device-fingerprint.service';
+import { BruteForceGuard } from './guards/brute-force.guard';
 import { SignupDto } from './dto/signup.dto';
 import { MagicLinkRequestDto } from './dto/magic-link.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -22,10 +24,15 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly deviceFingerprintService: DeviceFingerprintService,
+  ) {}
 
   @Post('signup')
-  async signup(@Body(new ValidationPipe({ transform: true })) signupDto: SignupDto) {
+  async signup(
+    @Body(new ValidationPipe({ transform: true })) signupDto: SignupDto,
+  ) {
     try {
       return await this.authService.signup(signupDto);
     } catch (error) {
@@ -37,9 +44,17 @@ export class AuthController {
   }
 
   @Post('login')
+  @UseGuards(BruteForceGuard)
   @HttpCode(HttpStatus.OK)
-  async login(@Body(new ValidationPipe({ transform: true })) dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(
+    @Body(new ValidationPipe({ transform: true })) dto: LoginDto,
+    @Req() req: any,
+  ) {
+    const deviceFingerprint =
+      this.deviceFingerprintService.extractFromRequest(req);
+    const fingerprint =
+      this.deviceFingerprintService.generateFingerprint(deviceFingerprint);
+    return this.authService.login(dto, fingerprint);
   }
 
   @Get('google')
@@ -52,10 +67,17 @@ export class AuthController {
   @UseGuards(AuthGuard('google'))
   async googleCallback(@Req() req: any) {
     const user = req.user;
-    const tokens = await this.authService.issueTokensWithRefresh({
-      id: user.id,
-      email: user.email ?? null,
-    });
+    const deviceFingerprint =
+      this.deviceFingerprintService.extractFromRequest(req);
+    const fingerprint =
+      this.deviceFingerprintService.generateFingerprint(deviceFingerprint);
+    const tokens = await this.authService.issueTokensWithRefresh(
+      {
+        id: user.id,
+        email: user.email ?? null,
+      },
+      fingerprint,
+    );
     return { user, tokens };
   }
 
@@ -69,19 +91,28 @@ export class AuthController {
   }
 
   @Get('verify-magic')
-  async verifyMagicLink(@Query('token') token: string) {
+  async verifyMagicLink(@Query('token') token: string, @Req() req: any) {
     if (!token) {
       throw new BadRequestException('Token is required');
     }
-    return this.authService.verifyMagicLink(token);
+    const deviceFingerprint =
+      this.deviceFingerprintService.extractFromRequest(req);
+    const fingerprint =
+      this.deviceFingerprintService.generateFingerprint(deviceFingerprint);
+    return this.authService.verifyMagicLink(token, fingerprint);
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Body(new ValidationPipe({ transform: true })) dto: RefreshTokenDto,
+    @Req() req: any,
   ) {
-    return this.authService.refreshTokens(dto.refreshToken);
+    const deviceFingerprint =
+      this.deviceFingerprintService.extractFromRequest(req);
+    const fingerprint =
+      this.deviceFingerprintService.generateFingerprint(deviceFingerprint);
+    return this.authService.refreshTokens(dto.refreshToken, fingerprint);
   }
 
   @Post('logout')

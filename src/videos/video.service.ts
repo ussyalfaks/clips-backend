@@ -9,7 +9,10 @@ type ViralMoment = { start: number; end: number; reason: string };
 export class VideoService {
   private readonly logger = new Logger(VideoService.name);
 
-  constructor(private readonly prisma: PrismaService, private readonly config: ConfigService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
   async detectViralTimestamps(videoId: number): Promise<ViralMoment[]> {
     const startTime = Date.now();
@@ -19,7 +22,9 @@ export class VideoService {
     let clipsGenerated = 0;
 
     try {
-      const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+      const video = await this.prisma.video.findUnique({
+        where: { id: videoId },
+      });
       if (!video) throw new Error(`Video ${videoId} not found`);
 
       // Metadata Extraction
@@ -30,15 +35,23 @@ export class VideoService {
             else resolve(data);
           });
         });
-        durationSec = metadata.format?.duration ? Math.round(metadata.format.duration) : (video.duration || 0);
-        const videoStream = metadata.streams?.find((s: any) => s.codec_type === 'video');
-        inputQuality = videoStream?.height ? `${videoStream.height}p` : 'unknown';
+        durationSec = metadata.format?.duration
+          ? Math.round(metadata.format.duration)
+          : video.duration || 0;
+        const videoStream = metadata.streams?.find(
+          (s: any) => s.codec_type === 'video',
+        );
+        inputQuality = videoStream?.height
+          ? `${videoStream.height}p`
+          : 'unknown';
       } catch (err: any) {
         this.logger.warn(`ffprobe metadata extraction failed: ${err.message}`);
         durationSec = video.duration || 0;
       }
 
-      const apiKey = this.config.get<string>('ANTHROPIC_API_KEY') || process.env.ANTHROPIC_API_KEY;
+      const apiKey =
+        this.config.get<string>('ANTHROPIC_API_KEY') ||
+        process.env.ANTHROPIC_API_KEY;
       const model = this.config.get<string>('ANTHROPIC_MODEL') || 'claude-4.1';
       const maxClips = 30;
       const minClips = 10;
@@ -52,7 +65,9 @@ export class VideoService {
       if (apiKey && url) {
         try {
           const moduleName: string = '@anthropic-ai/sdk';
-          const mod: any = await (Function('m','return import(m)') as (m: string) => Promise<any>)(moduleName);
+          const mod: any = await (
+            Function('m', 'return import(m)') as (m: string) => Promise<any>
+          )(moduleName);
           const Anthropic: any = mod.default ?? mod;
           const client = new Anthropic({ apiKey });
 
@@ -92,7 +107,12 @@ export class VideoService {
               end: Number(c?.end),
               reason: String(c?.reason ?? ''),
             }))
-            .filter((m) => Number.isFinite(m.start) && Number.isFinite(m.end) && m.end > m.start)
+            .filter(
+              (m) =>
+                Number.isFinite(m.start) &&
+                Number.isFinite(m.end) &&
+                m.end > m.start,
+            )
             .slice(0, maxClips);
 
           if (!moments || moments.length < minClips) {
@@ -139,7 +159,9 @@ export class VideoService {
           `ai_usage videoId=${videoId} provider=${provider} model=${model} input_tokens=${usage?.inputTokens ?? 0} output_tokens=${usage?.outputTokens ?? 0}`,
         );
       } else {
-        this.logger.log(`ai_usage videoId=${videoId} provider=${provider} model=${model}`);
+        this.logger.log(
+          `ai_usage videoId=${videoId} provider=${provider} model=${model}`,
+        );
       }
 
       return normalized;
@@ -162,9 +184,11 @@ export class VideoService {
           },
         });
       } catch (updateError) {
-        this.logger.error(`Failed to update processingStats on error: ${updateError}`);
+        this.logger.error(
+          `Failed to update processingStats on error: ${updateError}`,
+        );
       }
-      
+
       throw e;
     }
   }
@@ -180,8 +204,14 @@ export class VideoService {
     }
   }
 
-  private normalizeMoments(m: ViralMoment[], totalDuration: number | null): ViralMoment[] {
-    const max = typeof totalDuration === 'number' && Number.isFinite(totalDuration) ? totalDuration : null;
+  private normalizeMoments(
+    m: ViralMoment[],
+    totalDuration: number | null,
+  ): ViralMoment[] {
+    const max =
+      typeof totalDuration === 'number' && Number.isFinite(totalDuration)
+        ? totalDuration
+        : null;
     const cleaned = m
       .map((x) => {
         const start = Math.max(0, x.start);
@@ -205,7 +235,10 @@ export class VideoService {
   private fallbackFixedChunks(totalDuration: number | null): ViralMoment[] {
     const chunk = 30;
     const maxClips = 30;
-    const limit = typeof totalDuration === 'number' && Number.isFinite(totalDuration) ? totalDuration : chunk * maxClips;
+    const limit =
+      typeof totalDuration === 'number' && Number.isFinite(totalDuration)
+        ? totalDuration
+        : chunk * maxClips;
     const out: ViralMoment[] = [];
     let t = 0;
     while (t < limit && out.length < maxClips) {
@@ -217,4 +250,3 @@ export class VideoService {
     return out;
   }
 }
-

@@ -20,7 +20,7 @@ import { BulkDeleteClipsDto } from './dto/bulk-delete-clips.dto.js';
 @UseGuards(LoginGuard)
 @Controller('clips')
 export class ClipsController {
-  constructor(private readonly clipsService: ClipsService) { }
+  constructor(private readonly clipsService: ClipsService) {}
 
   /**
    * POST /clips/generate
@@ -103,15 +103,17 @@ export class ClipsController {
    */
   @Post('bulk-update')
   bulkUpdate(@Body() dto: BulkUpdateClipsDto, @Req() req: Request) {
-    const userId: number =
-      Number((req as any).user?.id ?? (req.headers['x-user-id'] as string) ?? 0);
+    const userId: number = Number(
+      (req as any).user?.id ?? (req.headers['x-user-id'] as string) ?? 0,
+    );
     return this.clipsService.bulkUpdate(userId, dto);
   }
 
   @Post('bulk-delete')
   bulkDelete(@Body() dto: BulkDeleteClipsDto, @Req() req: Request) {
-    const userId: number =
-      Number((req as any).user?.id ?? (req.headers['x-user-id'] as string) ?? 0);
+    const userId: number = Number(
+      (req as any).user?.id ?? (req.headers['x-user-id'] as string) ?? 0,
+    );
     return this.clipsService.bulkDeleteRejected(userId, dto.clipIds);
   }
 
@@ -121,8 +123,9 @@ export class ClipsController {
    */
   @Post(':id/regenerate')
   regenerate(@Param('id') id: string, @Req() req: Request) {
-    const userId: number =
-      Number((req as any).user?.id ?? (req.headers['x-user-id'] as string) ?? 0);
+    const userId: number = Number(
+      (req as any).user?.id ?? (req.headers['x-user-id'] as string) ?? 0,
+    );
     return this.clipsService.regenerate(userId, Number(id));
   }
 }

@@ -1,6 +1,9 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Job } from 'bullmq';
-import { ClipGenerationProcessor, ClipGenerationJob } from './clip-generation.processor';
+import {
+  ClipGenerationProcessor,
+  ClipGenerationJob,
+} from './clip-generation.processor';
 import { CLIP_GENERATION_FAILED_EVENT } from './clips.events';
 import { CLIP_JOB_OPTIONS } from './clip-generation.queue';
 
@@ -45,7 +48,9 @@ const JOB_DATA: ClipGenerationJob = {
   positionRatio: 0.5,
 };
 
-function makeJob(overrides: Partial<Job<ClipGenerationJob>> = {}): Job<ClipGenerationJob> {
+function makeJob(
+  overrides: Partial<Job<ClipGenerationJob>> = {},
+): Job<ClipGenerationJob> {
   return {
     id: 'job-1',
     data: JOB_DATA,
@@ -140,7 +145,10 @@ describe('ClipGenerationProcessor', () => {
         public_id: 'test-clip',
         error: 'Upload failed',
       });
-      const deleteLocalFileSpy = jest.spyOn(cloudinaryService, 'deleteLocalFile');
+      const deleteLocalFileSpy = jest.spyOn(
+        cloudinaryService,
+        'deleteLocalFile',
+      );
 
       await processor.process(makeJob());
 
@@ -150,7 +158,10 @@ describe('ClipGenerationProcessor', () => {
 
     it('deletes local file after successful upload', async () => {
       const { processor, cloudinaryService } = makeProcessor();
-      const deleteLocalFileSpy = jest.spyOn(cloudinaryService, 'deleteLocalFile');
+      const deleteLocalFileSpy = jest.spyOn(
+        cloudinaryService,
+        'deleteLocalFile',
+      );
 
       await processor.process(makeJob());
 

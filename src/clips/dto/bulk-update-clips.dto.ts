@@ -1,4 +1,10 @@
-import { IsArray, IsBoolean, IsOptional, IsString, ArrayNotEmpty } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsOptional,
+  IsString,
+  ArrayNotEmpty,
+} from 'class-validator';
 
 export class BulkUpdateClipsDto {
   /** IDs of clips to update — must all belong to the requesting user */

@@ -1,4 +1,9 @@
-import { Injectable, Logger, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
@@ -13,7 +18,10 @@ import {
   CLIP_GENERATION_FAILED_EVENT,
 } from './clips.events';
 import type { ClipGenerationFailedPayload } from './clips.events';
-import { CLIP_GENERATION_QUEUE, CLIP_JOB_OPTIONS } from './clip-generation.queue';
+import {
+  CLIP_GENERATION_QUEUE,
+  CLIP_JOB_OPTIONS,
+} from './clip-generation.queue';
 import { CloudinaryService } from './cloudinary.service';
 
 export type ClipSortField = 'viralityScore' | 'createdAt' | 'duration';
@@ -54,7 +62,9 @@ export class ClipsService {
   /**
    * Enqueue a clip-generation job with retry + exponential backoff.
    */
-  async enqueueClip(job: ClipGenerationJob): Promise<{ jobId: string | undefined }> {
+  async enqueueClip(
+    job: ClipGenerationJob,
+  ): Promise<{ jobId: string | undefined }> {
     const bullJob = await this.clipQueue.add('generate', job, CLIP_JOB_OPTIONS);
     if (bullJob?.id && job.videoId) {
       const set = this.videoJobs.get(job.videoId) ?? new Set<string>();
@@ -67,7 +77,10 @@ export class ClipsService {
   /**
    * Regenerate a single clip by re-running FFmpeg with original timestamps.
    */
-  async regenerate(userId: number, clipId: number): Promise<{ jobId: string | undefined }> {
+  async regenerate(
+    userId: number,
+    clipId: number,
+  ): Promise<{ jobId: string | undefined }> {
     const clip = await this.prisma.clip.findUnique({
       where: { id: clipId },
       include: { video: true },
@@ -78,7 +91,9 @@ export class ClipsService {
     }
 
     if (clip.video.userId !== userId) {
-      throw new ForbiddenException('You do not have permission to regenerate this clip');
+      throw new ForbiddenException(
+        'You do not have permission to regenerate this clip',
+      );
     }
 
     // Update status to processing
@@ -94,7 +109,7 @@ export class ClipsService {
       outputPath: `/tmp/clip-${clipId}-regen-${Date.now()}.mp4`,
       startTime: clip.startTime,
       endTime: clip.endTime,
-      positionRatio: (clip.startTime / (clip.video.duration || 1)), // Rough estimate if not stored
+      positionRatio: clip.startTime / (clip.video.duration || 1), // Rough estimate if not stored
       transcript: clip.caption || '', // Use caption as transcript fallback
       title: clip.title || undefined,
       clipId: clip.id,
@@ -122,8 +137,12 @@ export class ClipsService {
    * Listener for the terminal clip-generation failure event.
    */
   @OnEvent(CLIP_GENERATION_FAILED_EVENT)
-  async handleClipGenerationFailed(payload: ClipGenerationFailedPayload): Promise<void> {
-    this.logger.error(`Clip generation failed for video ${payload.videoId}: ${payload.failedReason}`);
+  async handleClipGenerationFailed(
+    payload: ClipGenerationFailedPayload,
+  ): Promise<void> {
+    this.logger.error(
+      `Clip generation failed for video ${payload.videoId}: ${payload.failedReason}`,
+    );
 
     // Update Video status and processingError in Prisma
     try {
@@ -137,7 +156,9 @@ export class ClipsService {
       });
       this.logger.log(`Video ${payload.videoId} marked as failed in database`);
     } catch (error) {
-      this.logger.error(`Failed to update video ${payload.videoId} status: ${(error as any).message}`);
+      this.logger.error(
+        `Failed to update video ${payload.videoId} status: ${error.message}`,
+      );
     }
 
     // For legacy in-memory support (if still needed)
@@ -154,7 +175,10 @@ export class ClipsService {
   /**
    * Bulk update clip status in a transaction.
    */
-  async bulkUpdate(userId: number, dto: BulkUpdateClipsDto): Promise<BulkUpdateResult> {
+  async bulkUpdate(
+    userId: number,
+    dto: BulkUpdateClipsDto,
+  ): Promise<BulkUpdateResult> {
     if (dto.selected === undefined && dto.postStatus === undefined) {
       throw new BadRequestException(
         'At least one of selected or postStatus must be provided',
@@ -222,17 +246,24 @@ export class ClipsService {
         where: { videoId },
       });
       if (!videoClips && this.seededClips.size > 0) {
-        videoClips = [...this.seededClips.values()].filter((c) => c.videoId === videoId);
+        videoClips = [...this.seededClips.values()].filter(
+          (c) => c.videoId === videoId,
+        );
       }
       if (!videoClips) videoClips = [];
-      
+
       // Check if all clips for this video have postStatus = 'posted'
       // Note: postStatus in Prisma is Json, so we check if it's strictly 'posted'
-      const allPosted = videoClips.every((c) => (c.postStatus as any) === 'posted');
+      const allPosted = videoClips.every(
+        (c) => (c.postStatus as any) === 'posted',
+      );
 
       if (allPosted && videoClips.length > 0) {
         allClipsProcessed = true;
-        const payload: AllClipsProcessedPayload = { videoId: String(videoId), clipCount: videoClips.length };
+        const payload: AllClipsProcessedPayload = {
+          videoId: String(videoId),
+          clipCount: videoClips.length,
+        };
         this.eventEmitter.emit(ALL_CLIPS_PROCESSED_EVENT, payload);
       }
     }
@@ -252,11 +283,7 @@ export class ClipsService {
    * Find clips for a specific video, or all clips.
    */
   async listClips(options: ListClipsOptions = {}): Promise<any[]> {
-    const {
-      videoId,
-      sortBy = 'viralityScore',
-      order = 'desc',
-    } = options;
+    const { videoId, sortBy = 'viralityScore', order = 'desc' } = options;
 
     const where: any = {};
     if (videoId) {
@@ -353,7 +380,11 @@ export class ClipsService {
     await this.updateClip(Number(id), { clipUrl, thumbnail });
   }
 
-  _registerJobController(videoId: string, jobId: string, controller: AbortController): void {
+  _registerJobController(
+    videoId: string,
+    jobId: string,
+    controller: AbortController,
+  ): void {
     if (jobId) {
       this.jobControllers.set(jobId, controller);
     }
@@ -376,7 +407,9 @@ export class ClipsService {
     return this.cancelledVideos.has(videoId);
   }
 
-  async cancelVideo(videoId: string): Promise<{ cancelled: boolean; removedJobs: number; abortedJobs: number }> {
+  async cancelVideo(
+    videoId: string,
+  ): Promise<{ cancelled: boolean; removedJobs: number; abortedJobs: number }> {
     this.cancelledVideos.add(videoId);
     const jobIds = [...(this.videoJobs.get(videoId) ?? new Set<string>())];
     let removedJobs = 0;
@@ -400,4 +433,3 @@ export class ClipsService {
     return { cancelled: true, removedJobs, abortedJobs };
   }
 }
-

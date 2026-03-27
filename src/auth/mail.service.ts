@@ -34,7 +34,9 @@ export class MailService {
       `,
     });
 
-    this.logger.log(`Magic link sent to ${email} — messageId: ${info.messageId}`);
+    this.logger.log(
+      `Magic link sent to ${email} — messageId: ${info.messageId}`,
+    );
   }
 
   async sendPasswordResetLink(email: string, token: string): Promise<void> {
@@ -53,6 +55,8 @@ export class MailService {
       `,
     });
 
-    this.logger.log(`Password reset link sent to ${email} — messageId: ${info.messageId}`);
+    this.logger.log(
+      `Password reset link sent to ${email} — messageId: ${info.messageId}`,
+    );
   }
 }

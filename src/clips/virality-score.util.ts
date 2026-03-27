@@ -29,10 +29,31 @@
  */
 
 const VIRAL_KEYWORDS = [
-  'amazing', 'incredible', 'shocking', 'unbelievable', 'secret',
-  'hack', 'trick', 'tip', 'mistake', 'never', 'always', 'best',
-  'worst', 'first', 'last', 'exclusive', 'breaking', 'urgent',
-  'must', 'need', 'free', 'win', 'lose', 'fail', 'success',
+  'amazing',
+  'incredible',
+  'shocking',
+  'unbelievable',
+  'secret',
+  'hack',
+  'trick',
+  'tip',
+  'mistake',
+  'never',
+  'always',
+  'best',
+  'worst',
+  'first',
+  'last',
+  'exclusive',
+  'breaking',
+  'urgent',
+  'must',
+  'need',
+  'free',
+  'win',
+  'lose',
+  'fail',
+  'success',
 ];
 
 export interface ViralityInput {

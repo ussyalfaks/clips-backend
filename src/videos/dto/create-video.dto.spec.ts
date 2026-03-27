@@ -32,7 +32,11 @@ describe('CreateVideoDto', () => {
         targetPlatforms: ['TikTok', 'Instagram', 'YOUTUBE-SHORTS'],
       });
 
-      expect(dto.targetPlatforms).toEqual(['tiktok', 'instagram', 'youtube-shorts']);
+      expect(dto.targetPlatforms).toEqual([
+        'tiktok',
+        'instagram',
+        'youtube-shorts',
+      ]);
       const errors = await validate(dto);
       expect(errors.length).toBe(0);
     });
@@ -53,7 +57,13 @@ describe('CreateVideoDto', () => {
       const dto = plainToInstance(CreateVideoDto, {
         userId: 1,
         sourceUrl: 'https://youtube.com/watch?v=test',
-        targetPlatforms: ['TikTok', 'tiktok', 'Instagram', 'INSTAGRAM', 'youtube'],
+        targetPlatforms: [
+          'TikTok',
+          'tiktok',
+          'Instagram',
+          'INSTAGRAM',
+          'youtube',
+        ],
       });
 
       expect(dto.targetPlatforms).toEqual(['tiktok', 'instagram', 'youtube']);
@@ -71,7 +81,9 @@ describe('CreateVideoDto', () => {
       const errors = await validate(dto);
       expect(errors.length).toBeGreaterThan(0);
       expect(errors[0].property).toBe('targetPlatforms');
-      expect(errors[0].constraints?.isValidPlatforms).toContain('Invalid platform(s)');
+      expect(errors[0].constraints?.isValidPlatforms).toContain(
+        'Invalid platform(s)',
+      );
     });
 
     it('should fail validation when targetPlatforms is not an array', async () => {

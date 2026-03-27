@@ -48,12 +48,11 @@ describe('ClipsService.bulkUpdate', () => {
     service._seed([clip1, clip2]);
 
     // Mock findById which now uses prisma
-    (prisma.clip.findUnique as jest.Mock)
-      .mockImplementation(({ where }) => {
-        if (where.id === 'c1') return Promise.resolve(clip1);
-        if (where.id === 'c2') return Promise.resolve(clip2);
-        return Promise.resolve(null);
-      });
+    prisma.clip.findUnique.mockImplementation(({ where }) => {
+      if (where.id === 'c1') return Promise.resolve(clip1);
+      if (where.id === 'c2') return Promise.resolve(clip2);
+      return Promise.resolve(null);
+    });
 
     const result = await service.bulkUpdate('user-1', {
       clipIds: ['c1', 'c2'],
@@ -71,9 +70,12 @@ describe('ClipsService.bulkUpdate', () => {
     const clip1 = makeClip({ id: 'c1' });
     service._seed([clip1]);
 
-    (prisma.clip.findUnique as jest.Mock).mockResolvedValue(clip1);
+    prisma.clip.findUnique.mockResolvedValue(clip1);
 
-    await service.bulkUpdate('user-1', { clipIds: ['c1'], postStatus: 'posted' });
+    await service.bulkUpdate('user-1', {
+      clipIds: ['c1'],
+      postStatus: 'posted',
+    });
 
     expect((await service.findById('c1'))!.postStatus).toBe('posted');
   });
@@ -82,7 +84,7 @@ describe('ClipsService.bulkUpdate', () => {
     const { service, prisma } = makeService();
     const clip1 = makeClip({ id: 'c1' });
     service._seed([clip1]);
-    (prisma.clip.findUnique as jest.Mock).mockResolvedValue(clip1);
+    prisma.clip.findUnique.mockResolvedValue(clip1);
     const status = { platform: 'tiktok', postId: 'abc', status: 'posted' };
 
     await service.bulkUpdate('user-1', { clipIds: ['c1'], postStatus: status });
@@ -94,7 +96,7 @@ describe('ClipsService.bulkUpdate', () => {
     const { service, prisma } = makeService();
     const clip1 = makeClip({ id: 'c1' });
     service._seed([clip1]);
-    (prisma.clip.findUnique as jest.Mock).mockImplementation(({ where }) => {
+    prisma.clip.findUnique.mockImplementation(({ where }) => {
       if (where.id === 'c1') return Promise.resolve(clip1);
       return Promise.resolve(null);
     });
@@ -112,7 +114,7 @@ describe('ClipsService.bulkUpdate', () => {
     const { service, prisma } = makeService();
     const clip1 = makeClip({ id: 'c1', userId: 'user-2' });
     service._seed([clip1]);
-    (prisma.clip.findUnique as jest.Mock).mockResolvedValue(clip1);
+    prisma.clip.findUnique.mockResolvedValue(clip1);
 
     // All requested IDs are owned by another user → ForbiddenException
     await expect(
@@ -153,10 +155,10 @@ describe('ClipsService.bulkUpdate', () => {
     });
 
     expect(result.allClipsProcessed).toBe(true);
-    expect(emitter.emit).toHaveBeenCalledWith(
-      ALL_CLIPS_PROCESSED_EVENT,
-      { videoId: 'v1', clipCount: 2 },
-    );
+    expect(emitter.emit).toHaveBeenCalledWith(ALL_CLIPS_PROCESSED_EVENT, {
+      videoId: 'v1',
+      clipCount: 2,
+    });
   });
 
   it('does NOT emit event when some clips in the video are still unprocessed', async () => {

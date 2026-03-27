@@ -83,7 +83,11 @@ export class ClipGenerationProcessor extends WorkerHost {
     const JOB_TIMEOUT_MS = 30 * 60 * 1000;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), JOB_TIMEOUT_MS);
-    this.clipsService._registerJobController(data.videoId, String(job.id ?? ''), controller);
+    this.clipsService._registerJobController(
+      data.videoId,
+      String(job.id ?? ''),
+      controller,
+    );
 
     this.logger.log(
       `Processing clip job ${job.id} — attempt ${job.attemptsMade + 1}/${job.opts.attempts ?? 1} ` +
@@ -107,11 +111,13 @@ export class ClipGenerationProcessor extends WorkerHost {
       const metadata = await getVideoMetadata(data.outputPath);
       const actualDuration = Math.round(metadata.duration);
 
-      const viralityScore = data.existingViralityScore ?? calculateViralityScore({
-        durationSeconds: actualDuration,
-        positionRatio: data.positionRatio,
-        transcript: data.transcript,
-      });
+      const viralityScore =
+        data.existingViralityScore ??
+        calculateViralityScore({
+          durationSeconds: actualDuration,
+          positionRatio: data.positionRatio,
+          transcript: data.transcript,
+        });
 
       this.logger.log(
         `Clip cut successfully — videoId=${data.videoId} ` +
@@ -123,7 +129,11 @@ export class ClipGenerationProcessor extends WorkerHost {
       // Upload to Cloudinary with 2 retries
       await job.updateProgress(80);
       const abortPromise = new Promise<never>((_, reject) => {
-        controller.signal.addEventListener('abort', () => reject(new Error('Aborted')), { once: true });
+        controller.signal.addEventListener(
+          'abort',
+          () => reject(new Error('Aborted')),
+          { once: true },
+        );
       });
       const uploadResult = await Promise.race([
         this.uploadToCloudinary(data.outputPath, clipId),
@@ -190,22 +200,23 @@ export class ClipGenerationProcessor extends WorkerHost {
       };
     } catch (error) {
       this.logger.error(
-        `Clip generation failed for ${clipId}: ${(error as any).message}`,
-        (error as any).stack,
+        `Clip generation failed for ${clipId}: ${error.message}`,
+        error.stack,
       );
 
       // Only attempt cleanup if the error occurred before/during FFmpeg cut
       // If upload failed, the file is already preserved in the success path
-      const errorMessage = (error as any).message || '';
-      const isUploadError = errorMessage.includes('Cloudinary') || errorMessage.includes('upload');
-      
+      const errorMessage = error.message || '';
+      const isUploadError =
+        errorMessage.includes('Cloudinary') || errorMessage.includes('upload');
+
       if (!isUploadError) {
         // Attempt cleanup of local file for non-upload errors
         try {
           await this.cloudinaryService.deleteLocalFile(data.outputPath);
         } catch (cleanupError) {
           this.logger.warn(
-            `Cleanup failed for ${data.outputPath}: ${(cleanupError as any).message}`,
+            `Cleanup failed for ${data.outputPath}: ${cleanupError.message}`,
           );
         }
       }
@@ -248,10 +259,10 @@ export class ClipGenerationProcessor extends WorkerHost {
       return result;
     } catch (error) {
       this.logger.error(
-        `Upload to Cloudinary failed for ${clipId}: ${(error as any).message}`,
+        `Upload to Cloudinary failed for ${clipId}: ${error.message}`,
       );
       return {
-        error: (error as any).message,
+        error: error.message,
         secure_url: '',
         public_id: clipId,
       };
@@ -307,11 +318,15 @@ export class ClipGenerationProcessor extends WorkerHost {
   async onCompleted(job: Job<ClipGenerationJob>, result: Clip): Promise<void> {
     const { clipId } = job.data;
     if (!clipId) {
-      this.logger.debug(`Job ${job.id} completed but no clipId provided for database update`);
+      this.logger.debug(
+        `Job ${job.id} completed but no clipId provided for database update`,
+      );
       return;
     }
 
-    this.logger.log(`Job ${job.id} completed. Updating clip ${clipId} in database.`);
+    this.logger.log(
+      `Job ${job.id} completed. Updating clip ${clipId} in database.`,
+    );
 
     try {
       await this.clipsService.updateClip(clipId, {
@@ -324,7 +339,7 @@ export class ClipGenerationProcessor extends WorkerHost {
       });
     } catch (error) {
       this.logger.error(
-        `Failed to update clip ${clipId} after successful generation: ${(error as any).message}`,
+        `Failed to update clip ${clipId} after successful generation: ${error.message}`,
       );
     }
   }

@@ -153,13 +153,16 @@ model MagicLink {
 }
 
 model RefreshToken {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  tokenHash String   @unique
-  expiresAt DateTime
-  revokedAt DateTime?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  tokenHash     String   @unique
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  userAgentHash String?
+  ipAddress     String?
+  acceptLanguage String?
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

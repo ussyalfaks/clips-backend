@@ -1,4 +1,9 @@
-import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue, Job } from 'bullmq';
 import { CLIP_GENERATION_QUEUE } from '../clips/clip-generation.queue';
@@ -44,7 +49,9 @@ export class JobsService {
 
     const state = await job.getState();
     if (state !== 'failed') {
-      throw new BadRequestException(`Job ${jobId} is not in failed state (current state: ${state})`);
+      throw new BadRequestException(
+        `Job ${jobId} is not in failed state (current state: ${state})`,
+      );
     }
 
     await job.retry();

@@ -50,15 +50,22 @@ describe('cutClip', () => {
     mockSeekInput.mockReturnValue({ duration: mockDuration });
     mockDuration.mockReturnValue({ output: mockOutput });
     mockOutput.mockReturnValue({ on: mockOn });
-    mockOn.mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
-      capturedCallbacks[event] = cb;
-      return { on: mockOn, run: mockRun };
-    });
+    mockOn.mockImplementation(
+      (event: string, cb: (...args: unknown[]) => void) => {
+        capturedCallbacks[event] = cb;
+        return { on: mockOn, run: mockRun };
+      },
+    );
     mockRun.mockImplementation(() => capturedCallbacks['end']?.());
   });
 
   it('passes correct seekInput and duration for float times (12.5 → 45.7)', async () => {
-    await cutClip({ inputPath: 'in.mp4', outputPath: 'out.mp4', startTime: 12.5, endTime: 45.7 });
+    await cutClip({
+      inputPath: 'in.mp4',
+      outputPath: 'out.mp4',
+      startTime: 12.5,
+      endTime: 45.7,
+    });
 
     expect(getSeekArg()).toBe(12.5);
     // duration = 45.7 - 12.5 = 33.2 (fixed to 3 d.p.)
@@ -66,7 +73,12 @@ describe('cutClip', () => {
   });
 
   it('clamps startTime < 0 to 0', async () => {
-    await cutClip({ inputPath: 'in.mp4', outputPath: 'out.mp4', startTime: -5, endTime: 10 });
+    await cutClip({
+      inputPath: 'in.mp4',
+      outputPath: 'out.mp4',
+      startTime: -5,
+      endTime: 10,
+    });
 
     expect(getSeekArg()).toBe(0);
     expect(getDurationArg()).toBe(10);
@@ -86,7 +98,12 @@ describe('cutClip', () => {
   });
 
   it('handles start=0 correctly', async () => {
-    await cutClip({ inputPath: 'in.mp4', outputPath: 'out.mp4', startTime: 0, endTime: 30 });
+    await cutClip({
+      inputPath: 'in.mp4',
+      outputPath: 'out.mp4',
+      startTime: 0,
+      endTime: 30,
+    });
 
     expect(getSeekArg()).toBe(0);
     expect(getDurationArg()).toBe(30);
@@ -94,21 +111,38 @@ describe('cutClip', () => {
 
   it('throws RangeError when endTime <= startTime', () => {
     expect(() =>
-      cutClip({ inputPath: 'in.mp4', outputPath: 'out.mp4', startTime: 50, endTime: 30 }),
+      cutClip({
+        inputPath: 'in.mp4',
+        outputPath: 'out.mp4',
+        startTime: 50,
+        endTime: 30,
+      }),
     ).toThrow(RangeError);
   });
 
   it('throws RangeError when endTime equals startTime', () => {
     expect(() =>
-      cutClip({ inputPath: 'in.mp4', outputPath: 'out.mp4', startTime: 10, endTime: 10 }),
+      cutClip({
+        inputPath: 'in.mp4',
+        outputPath: 'out.mp4',
+        startTime: 10,
+        endTime: 10,
+      }),
     ).toThrow(RangeError);
   });
 
   it('rejects when FFmpeg emits an error', async () => {
-    mockRun.mockImplementation(() => capturedCallbacks['error']?.(new Error('ffmpeg failed')));
+    mockRun.mockImplementation(() =>
+      capturedCallbacks['error']?.(new Error('ffmpeg failed')),
+    );
 
     await expect(
-      cutClip({ inputPath: 'in.mp4', outputPath: 'out.mp4', startTime: 0, endTime: 10 }),
+      cutClip({
+        inputPath: 'in.mp4',
+        outputPath: 'out.mp4',
+        startTime: 0,
+        endTime: 10,
+      }),
     ).rejects.toThrow('ffmpeg failed');
   });
 
@@ -161,7 +195,9 @@ describe('getVideoMetadata', () => {
   });
 
   it('rejects when ffprobe fails', async () => {
-    mockFfprobe.mockImplementation((path, cb) => cb(new Error('ffprobe error'), null));
+    mockFfprobe.mockImplementation((path, cb) =>
+      cb(new Error('ffprobe error'), null),
+    );
 
     await expect(getVideoMetadata('bad.mp4')).rejects.toThrow('ffprobe error');
   });
@@ -173,6 +209,8 @@ describe('getVideoMetadata', () => {
     };
     mockFfprobe.mockImplementation((path, cb) => cb(null, mockMetadata));
 
-    await expect(getVideoMetadata('audio.mp3')).rejects.toThrow('No video stream found');
+    await expect(getVideoMetadata('audio.mp3')).rejects.toThrow(
+      'No video stream found',
+    );
   });
 });

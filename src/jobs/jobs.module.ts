@@ -5,9 +5,7 @@ import { JobsService } from './jobs.service';
 import { CLIP_GENERATION_QUEUE } from '../clips/clip-generation.queue';
 
 @Module({
-  imports: [
-    BullModule.registerQueue({ name: CLIP_GENERATION_QUEUE }),
-  ],
+  imports: [BullModule.registerQueue({ name: CLIP_GENERATION_QUEUE })],
   controllers: [JobsController],
   providers: [JobsService],
 })

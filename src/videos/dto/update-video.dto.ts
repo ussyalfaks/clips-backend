@@ -35,13 +35,14 @@ export class UpdateVideoDto {
   @IsOptional()
   @IsArray()
   @IsValidPlatforms({
-    message: 'Invalid targetPlatforms. Must be an array of supported platforms.',
+    message:
+      'Invalid targetPlatforms. Must be an array of supported platforms.',
   })
   @Transform(({ value }) => {
     if (!Array.isArray(value)) return value;
     // Normalize: lowercase and dedupe
-    const normalized = value.map((p: string) => 
-      typeof p === 'string' ? p.toLowerCase() : p
+    const normalized = value.map((p: string) =>
+      typeof p === 'string' ? p.toLowerCase() : p,
     );
     return [...new Set(normalized)];
   })

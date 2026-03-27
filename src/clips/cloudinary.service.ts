@@ -73,7 +73,7 @@ export class CloudinaryService {
           return result;
         }
       } catch (error) {
-        lastError = (error as any).message;
+        lastError = error.message;
         this.logger.error(
           `Cloudinary upload attempt ${attempt}/${maxAttempts} threw error for ${publicId}: ${lastError}`,
         );
@@ -199,7 +199,7 @@ export class CloudinaryService {
       await cloudinary.uploader.destroy(publicId, { resource_type: 'video' });
       this.logger.log(`Clip deleted from Cloudinary: ${publicId}`);
     } catch (error) {
-      this.logger.error(`Failed to delete clip ${publicId}: ${(error as any).message}`);
+      this.logger.error(`Failed to delete clip ${publicId}: ${error.message}`);
     }
   }
 
@@ -215,7 +215,7 @@ export class CloudinaryService {
       }
     } catch (error) {
       this.logger.error(
-        `Failed to delete local file ${filePath}: ${(error as any).message}`,
+        `Failed to delete local file ${filePath}: ${error.message}`,
       );
     }
   }

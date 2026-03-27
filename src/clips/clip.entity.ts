@@ -1,4 +1,8 @@
-export type PostStatus = 'pending' | 'posted' | 'failed' | Record<string, unknown>;
+export type PostStatus =
+  | 'pending'
+  | 'posted'
+  | 'failed'
+  | Record<string, unknown>;
 
 export interface Clip {
   id: string;

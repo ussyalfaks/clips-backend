@@ -1,4 +1,7 @@
-import { IsValidPlatformsConstraint, SUPPORTED_PLATFORMS } from './is-valid-platforms.validator';
+import {
+  IsValidPlatformsConstraint,
+  SUPPORTED_PLATFORMS,
+} from './is-valid-platforms.validator';
 
 describe('IsValidPlatformsConstraint', () => {
   let validator: IsValidPlatformsConstraint;
@@ -35,7 +38,9 @@ describe('IsValidPlatformsConstraint', () => {
     it('should return false for array with invalid platform', () => {
       expect(validator.validate(['tiktok', 'invalid-platform'])).toBe(false);
       expect(validator.validate(['reddit'])).toBe(false);
-      expect(validator.validate(['tiktok', 'instagram', 'linkedin'])).toBe(false);
+      expect(validator.validate(['tiktok', 'instagram', 'linkedin'])).toBe(
+        false,
+      );
     });
 
     it('should return false for array with non-string values', () => {
@@ -53,7 +58,9 @@ describe('IsValidPlatformsConstraint', () => {
   describe('defaultMessage', () => {
     it('should return appropriate message for non-array', () => {
       validator.validate('not-an-array');
-      const message = validator.defaultMessage({ value: 'not-an-array' } as any);
+      const message = validator.defaultMessage({
+        value: 'not-an-array',
+      } as any);
       expect(message).toBe('targetPlatforms must be an array');
     });
 
@@ -67,7 +74,9 @@ describe('IsValidPlatformsConstraint', () => {
       const invalidValue = ['tiktok', 'invalid-platform', 'another-invalid'];
       validator.validate(invalidValue);
       const message = validator.defaultMessage({ value: invalidValue } as any);
-      expect(message).toContain('Invalid platform(s): invalid-platform, another-invalid');
+      expect(message).toContain(
+        'Invalid platform(s): invalid-platform, another-invalid',
+      );
       expect(message).toContain('Supported platforms:');
     });
 

@@ -14,7 +14,12 @@ import { PrismaModule } from '../prisma/prisma.module';
     PrismaModule,
   ],
   controllers: [ClipsController],
-  providers: [ClipsService, ClipGenerationProcessor, CloudinaryService, ClipsGateway],
+  providers: [
+    ClipsService,
+    ClipGenerationProcessor,
+    CloudinaryService,
+    ClipsGateway,
+  ],
   exports: [ClipsService, CloudinaryService, ClipsGateway],
 })
 export class ClipsModule {}

@@ -14,10 +14,10 @@ import { UpdateVideoDto } from './dto/update-video.dto';
 
 /**
  * Example Videos Controller
- * 
+ *
  * This is an example implementation showing how to use the Video DTOs
  * with proper validation for targetPlatforms.
- * 
+ *
  * To use this controller:
  * 1. Rename this file to videos.controller.ts
  * 2. Update VideoService to include create/update methods
@@ -30,7 +30,7 @@ export class VideosController {
   /**
    * POST /videos
    * Create a new video with validated targetPlatforms
-   * 
+   *
    * Example request body:
    * {
    *   "userId": 1,
@@ -38,12 +38,12 @@ export class VideosController {
    *   "title": "My Video",
    *   "targetPlatforms": ["TikTok", "Instagram", "YOUTUBE-SHORTS"]
    * }
-   * 
+   *
    * The targetPlatforms will be automatically:
    * - Validated (only supported platforms)
    * - Normalized to lowercase
    * - Deduplicated
-   * 
+   *
    * Result: ["tiktok", "instagram", "youtube-shorts"]
    */
   @Post()
@@ -52,7 +52,7 @@ export class VideosController {
     // - Validated (only supported platforms)
     // - Normalized (lowercase)
     // - Deduplicated
-    
+
     // Example: Pass to Prisma
     // return this.prisma.video.create({
     //   data: {
@@ -60,7 +60,7 @@ export class VideosController {
     //     targetPlatforms: createVideoDto.targetPlatforms || [],
     //   },
     // });
-    
+
     return {
       message: 'Video created successfully',
       data: createVideoDto,
@@ -90,13 +90,13 @@ export class VideosController {
   /**
    * PATCH /videos/:id
    * Update a video with validated targetPlatforms
-   * 
+   *
    * Example request body:
    * {
    *   "title": "Updated Title",
    *   "targetPlatforms": ["TIKTOK", "tiktok", "Instagram"]
    * }
-   * 
+   *
    * Result: targetPlatforms = ["tiktok", "instagram"]
    */
   @Patch(':id')
@@ -108,13 +108,13 @@ export class VideosController {
     // - Validated (only supported platforms)
     // - Normalized (lowercase)
     // - Deduplicated
-    
+
     // Example: Pass to Prisma
     // return this.prisma.video.update({
     //   where: { id },
     //   data: updateVideoDto,
     // });
-    
+
     return {
       message: `Video ${id} updated successfully`,
       data: updateVideoDto,
@@ -134,7 +134,7 @@ export class VideosController {
 
 /**
  * Error Response Examples
- * 
+ *
  * 1. Invalid platform:
  * POST /videos
  * {
@@ -142,7 +142,7 @@ export class VideosController {
  *   "sourceUrl": "https://youtube.com/watch?v=test",
  *   "targetPlatforms": ["tiktok", "invalid-platform"]
  * }
- * 
+ *
  * Response: 400 Bad Request
  * {
  *   "statusCode": 400,
@@ -151,7 +151,7 @@ export class VideosController {
  *   ],
  *   "error": "Bad Request"
  * }
- * 
+ *
  * 2. Not an array:
  * POST /videos
  * {
@@ -159,7 +159,7 @@ export class VideosController {
  *   "sourceUrl": "https://youtube.com/watch?v=test",
  *   "targetPlatforms": "tiktok"
  * }
- * 
+ *
  * Response: 400 Bad Request
  * {
  *   "statusCode": 400,

@@ -3,7 +3,18 @@
  * Rotated based on a simple hash of the clip ID so each clip gets a
  * consistent but varied set of emojis.
  */
-const CAPTION_EMOJIS = ['🔥', '🎬', '✨', '💥', '🚀', '🎯', '💡', '🎉', '👀', '⚡'];
+const CAPTION_EMOJIS = [
+  '🔥',
+  '🎬',
+  '✨',
+  '💥',
+  '🚀',
+  '🎯',
+  '💡',
+  '🎉',
+  '👀',
+  '⚡',
+];
 
 /**
  * Pick two emojis deterministically from the clip ID (or fall back to random).

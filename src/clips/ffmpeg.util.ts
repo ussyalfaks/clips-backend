@@ -27,7 +27,9 @@ export interface VideoMetadata {
  * Extracts video metadata using ffprobe.
  * Returns duration, width, height, format, and resolution.
  */
-export async function getVideoMetadata(inputPath: string): Promise<VideoMetadata> {
+export async function getVideoMetadata(
+  inputPath: string,
+): Promise<VideoMetadata> {
   return new Promise((resolve, reject) => {
     ffmpeg.ffprobe(inputPath, (err, metadata) => {
       if (err) {
@@ -79,9 +81,10 @@ export function cutClip(options: CutClipOptions): Promise<string> {
 
   // --- Sanitise & clamp ---
   const start = Math.max(0, options.startTime);
-  const end = videoDuration != null
-    ? Math.min(options.endTime, videoDuration)
-    : options.endTime;
+  const end =
+    videoDuration != null
+      ? Math.min(options.endTime, videoDuration)
+      : options.endTime;
 
   if (end <= start) {
     throw new RangeError(
@@ -116,9 +119,10 @@ export function cutClip(options: CutClipOptions): Promise<string> {
         resolve(outputPath);
       })
       .on('error', (err: Error) => {
-        const stderrSummary = stderrLines.length > 0
-          ? `\nLast FFmpeg output:\n${stderrLines.join('\n')}`
-          : '';
+        const stderrSummary =
+          stderrLines.length > 0
+            ? `\nLast FFmpeg output:\n${stderrLines.join('\n')}`
+            : '';
         const detailedError = new Error(`${err.message}${stderrSummary}`);
         reject(detailedError);
       });

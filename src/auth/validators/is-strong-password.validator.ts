@@ -12,9 +12,7 @@ export interface PasswordStrengthError {
 }
 
 @ValidatorConstraint({ name: 'isStrongPassword', async: false })
-export class IsStrongPasswordConstraint
-  implements ValidatorConstraintInterface
-{
+export class IsStrongPasswordConstraint implements ValidatorConstraintInterface {
   private feedbackMessages: PasswordStrengthError;
 
   validate(password: string): boolean {

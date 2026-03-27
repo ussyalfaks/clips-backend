@@ -1,16 +1,20 @@
 import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { IsStrongPasswordConstraint } from './validators/is-strong-password.validator';
 import { MailService } from './mail.service';
+import { DeviceFingerprintService } from './device-fingerprint.service';
+import { BruteForceProtectionService } from './brute-force-protection.service';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
   imports: [
+    ConfigModule,
     PrismaModule,
     PassportModule.register({ session: false }),
     JwtModule.registerAsync({
@@ -27,6 +31,14 @@ import { PrismaModule } from '../prisma/prisma.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, GoogleStrategy, JwtStrategy, IsStrongPasswordConstraint, MailService],
+  providers: [
+    AuthService,
+    GoogleStrategy,
+    JwtStrategy,
+    IsStrongPasswordConstraint,
+    MailService,
+    DeviceFingerprintService,
+    BruteForceProtectionService,
+  ],
 })
 export class AuthModule {}
