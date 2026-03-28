@@ -30,6 +30,8 @@
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/platform-socket.io": "^11.0.1",
     "@nestjs/websockets": "^11.0.1",
+    "@nestjs/swagger": "^8.0.0",
+    "@stellar/stellar-sdk": "^13.0.0",
     "@prisma/client": "^5.20.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/nodemailer": "^7.0.11",

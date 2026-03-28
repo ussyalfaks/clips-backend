@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { StrKey } from '@stellar/stellar-sdk';
 
 export type StellarNetwork = 'testnet' | 'public';
 
@@ -33,5 +34,29 @@ export class StellarService {
 
   isMainnet(): boolean {
     return this.network === 'public';
+  }
+
+  /**
+   * Validates a Stellar public address format and checksum
+   * @param address Stellar public address (G...)
+   */
+  validateAddress(address: string): { valid: boolean; message?: string } {
+    if (!address) {
+      return { valid: false, message: 'Address is required' };
+    }
+
+    try {
+      const isValid = StrKey.isValidEd25519PublicKey(address);
+      if (isValid) {
+        return { valid: true };
+      }
+      return { valid: false, message: 'Invalid Stellar address format' };
+    } catch (error) {
+      return {
+        valid: false,
+        message:
+          error instanceof Error ? error.message : 'Invalid Stellar address',
+      };
+    }
   }
 }
