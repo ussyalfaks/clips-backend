@@ -12,6 +12,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
@@ -34,6 +35,7 @@ export class AuthController {
   ) {}
 
   @Post('signup')
+  @Throttle({ auth: { limit: 10, ttl: 60000 } })
   async signup(
     @Body(new ValidationPipe({ transform: true })) signupDto: SignupDto,
     @Res({ passthrough: true }) res: Response,
@@ -56,6 +58,7 @@ export class AuthController {
 
   @Post('login')
   @UseGuards(BruteForceGuard)
+  @Throttle({ auth: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async login(
     @Body(new ValidationPipe({ transform: true })) dto: LoginDto,
