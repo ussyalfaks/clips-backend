@@ -59,4 +59,24 @@ export class MailService {
       `Password reset link sent to ${email} — messageId: ${info.messageId}`,
     );
   }
+
+  async sendVerificationEmail(email: string, token: string): Promise<void> {
+    const baseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
+    const link = `${baseUrl}/auth/verify-email?token=${token}`;
+
+    const info = await this.transporter.sendMail({
+      from: process.env.SMTP_FROM || '"Clips App" <noreply@clips.app>',
+      to: email,
+      subject: 'Verify your email address',
+      text: `Click the link below to verify your email address (expires in 24 hours):\n\n${link}`,
+      html: `
+        <p>Welcome to Clips App! Click the button below to verify your email address. This link expires in <strong>24 hours</strong>.</p>
+        <a href="${link}" style="display:inline-block;padding:12px 24px;background:#6366f1;color:#fff;border-radius:6px;text-decoration:none;">Verify Email</a>
+        <p>Or copy this URL: ${link}</p>
+      `,
+    });
+
+    this.logger.log(`Email verification link sent to ${email} — messageId: ${info.messageId}`);
+  }
 }
+

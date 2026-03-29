@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -17,6 +16,7 @@ model User {
   providerId    String?
   name          String?
   picture       String?
+  emailVerified DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   videos        Video[]
@@ -27,6 +27,7 @@ model User {
   magicLinks     MagicLink[]
   refreshTokens  RefreshToken[]
   passwordResetTokens PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
 
   @@unique([provider, providerId])
 }
@@ -170,6 +171,19 @@ model RefreshToken {
 }
 
 model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+}
+
+model EmailVerificationToken {
   id        Int      @id @default(autoincrement())
   userId    Int
   tokenHash String   @unique
