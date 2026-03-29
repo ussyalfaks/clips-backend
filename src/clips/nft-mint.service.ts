@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StellarService } from '../stellar/stellar.service';
-import * as StellarSdk from 'stellar-sdk';
+import * as StellarSdk from '@stellar/stellar-sdk';
 
 interface NftAttribute {
   trait_type: string;
@@ -20,6 +20,12 @@ interface NftMetadata {
   animation_url: string;
   external_url?: string;
   attributes: NftAttribute[];
+}
+
+interface UploadMetadataResult {
+  clipId: number;
+  cid: string;
+  metadataUri: string;
 }
 
 @Injectable()
@@ -44,6 +50,49 @@ export class NftMintService {
     private readonly prisma: PrismaService,
     private readonly stellarService: StellarService,
   ) {}
+
+  async uploadMetadataToIPFS(clipId: number): Promise<UploadMetadataResult> {
+    const clip = await this.prisma.clip.findUnique({
+      where: { id: clipId },
+    });
+
+    if (!clip) {
+      throw new NotFoundException(`Clip with ID ${clipId} not found`);
+    }
+
+    if (!clip.clipUrl) {
+      throw new BadRequestException(
+        'Clip is not ready for metadata upload (missing clipUrl)',
+      );
+    }
+
+    const metadata = this.buildMetadata({
+      id: clip.id,
+      title: clip.title,
+      caption: clip.caption,
+      clipUrl: clip.clipUrl,
+      thumbnail: clip.thumbnail,
+      duration: clip.duration,
+      viralityScore: clip.viralityScore,
+      createdAt: clip.createdAt,
+      postStatus: clip.postStatus,
+      royaltyBps: this.CREATOR_ROYALTY_BPS,
+    });
+
+    const metadataUri = await this.uploadMetadataToIpfs(metadata, clip.id);
+    const cid = metadataUri.replace('ipfs://', '');
+
+    await this.prisma.clip.update({
+      where: { id: clip.id },
+      data: { metadataUri },
+    });
+
+    return {
+      clipId: clip.id,
+      cid,
+      metadataUri,
+    };
+  }
 
   /**
    * Prepares a Soroban transaction for minting a clip as an NFT.
@@ -97,8 +146,8 @@ export class NftMintService {
     const userWallet = user.wallets[0].address;
 
     try {
-      const metadata = this.buildMetadata(clip);
-      const metadataUri = await this.uploadMetadataToIpfs(metadata, clip.id);
+      const metadataUri =
+        clip.metadataUri ?? (await this.uploadMetadataToIPFS(clip.id)).metadataUri;
 
       // 3. Build Soroban transaction
       const networkPassphrase = this.stellarService.networkPassphrase;
@@ -178,12 +227,15 @@ export class NftMintService {
     viralityScore: number | null;
     createdAt: Date;
     postStatus: unknown;
+    royaltyBps: number;
   }): NftMetadata {
     const platforms = this.extractPlatforms(clip.postStatus);
     const attributes: NftAttribute[] = [
       { trait_type: 'clipDuration', value: clip.duration },
       { trait_type: 'viralityScore', value: clip.viralityScore ?? 0 },
       { trait_type: 'createdAt', value: clip.createdAt.toISOString() },
+      { trait_type: 'royaltyBps', value: clip.royaltyBps },
+      { trait_type: 'royaltyPercent', value: clip.royaltyBps / 100 },
       {
         trait_type: 'platformsPosted',
         value: platforms.length ? platforms.join(',') : 'none',
