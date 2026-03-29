@@ -19,7 +19,8 @@ describe('StellarService', () => {
   describe('validateAddress', () => {
     it('should return valid: true for a correct Stellar address', () => {
       // Real valid Stellar address
-      const validAddress = 'GC7OHFPWPSWXL4HMN6TXAG54MTZSMJIASWHO6KVRQNHNCXEAHWDSGGC3';
+      const validAddress =
+        'GC7OHFPWPSWXL4HMN6TXAG54MTZSMJIASWHO6KVRQNHNCXEAHWDSGGC3';
       const result = service.validateAddress(validAddress);
       expect(result.valid).toBe(true);
     });
@@ -38,7 +39,8 @@ describe('StellarService', () => {
 
     it('should return valid: false for an invalid checksum', () => {
       // Changed the last character from '3' to '4' to break the checksum
-      const invalidAddress = 'GC7OHFPWPSWXL4HMN6TXAG54MTZSMJIASWHO6KVRQNHNCXEAHWDSGGC4';
+      const invalidAddress =
+        'GC7OHFPWPSWXL4HMN6TXAG54MTZSMJIASWHO6KVRQNHNCXEAHWDSGGC4';
       const result = service.validateAddress(invalidAddress);
       expect(result.valid).toBe(false);
       expect(result.message).toBe('Invalid Stellar address format');
@@ -46,9 +48,10 @@ describe('StellarService', () => {
 
     it('should return valid: false for an address that is not a public key', () => {
       // S... is a secret key, not a public key
-      const secretKey = 'S...'; 
+      const secretKey = 'S...';
       // Actually, a real secret key:
-      const realSecretKey = 'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'; // Not necessarily valid format
+      const realSecretKey =
+        'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'; // Not necessarily valid format
       const result = service.validateAddress(realSecretKey);
       expect(result.valid).toBe(false);
       expect(result.message).toBe('Invalid Stellar address format');

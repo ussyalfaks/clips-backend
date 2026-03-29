@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StellarService } from '../stellar/stellar.service';
-import * as StellarSdk from '@stellar/stellar-sdk';
+import StellarSdk from '@stellar/stellar-sdk';
 
 interface NftAttribute {
   trait_type: string;
@@ -119,9 +119,18 @@ export class NftMintService {
       );
     }
 
+    // Prevent double minting - check if already minted or minting in progress
+    if (clip.nftStatus !== 'none' && clip.nftStatus !== 'failed') {
+      throw new BadRequestException(
+        `Clip is already minted or in minting process (status: ${clip.nftStatus}). Cannot mint twice.`,
+      );
+    }
+
     // Basic error handling: clip not ready
     if (!clip.clipUrl) {
-      throw new BadRequestException('Clip is not ready for minting (missing URL)');
+      throw new BadRequestException(
+        'Clip is not ready for minting (missing URL)',
+      );
     }
 
     // 2. Fetch user's Stellar wallet
@@ -160,11 +169,21 @@ export class NftMintService {
       const contract = new StellarSdk.Contract(this.CONTRACT_ID);
 
       // Build the operation using contract.call
-      // 4. Build Royalty Map ScVal
+      // 4. Build Royalty Map ScVal with creator royalty from clip
+      // Use custom royaltyBps from clip, default to 1000 (10%) if not provided
+      const creatorRoyaltyBps = clip.royaltyBps ?? 1000;
+      
+      // Validate royaltyBps is within acceptable range (0-1500 = 0-15%)
+      if (creatorRoyaltyBps < 0 || creatorRoyaltyBps > 1500) {
+        throw new BadRequestException(
+          `Invalid royaltyBps: ${creatorRoyaltyBps}. Must be between 0 and 1500.`,
+        );
+      }
+
       const royaltyMapEntries = [
         {
           key: StellarSdk.Address.fromString(userWallet).toScVal(),
-          value: StellarSdk.nativeToScVal(this.CREATOR_ROYALTY_BPS, {
+          value: StellarSdk.nativeToScVal(creatorRoyaltyBps, {
             type: 'u32',
           }),
         },
@@ -210,7 +229,10 @@ export class NftMintService {
       const message =
         error instanceof Error ? error.message : 'unknown minting error';
       const stack = error instanceof Error ? error.stack : undefined;
-      this.logger.error(`Failed to prepare mint transaction: ${message}`, stack);
+      this.logger.error(
+        `Failed to prepare mint transaction: ${message}`,
+        stack,
+      );
       throw new BadRequestException(
         `Stellar transaction preparation failed: ${message}`,
       );
@@ -311,7 +333,9 @@ export class NftMintService {
 
     const cid = payload.IpfsHash ?? payload.cid ?? payload.hash;
     if (!cid) {
-      throw new BadRequestException('IPFS metadata upload response missing CID');
+      throw new BadRequestException(
+        'IPFS metadata upload response missing CID',
+      );
     }
 
     return `ipfs://${cid}`;
@@ -391,7 +415,9 @@ export class NftMintService {
       };
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Ownership verification failed';
+        error instanceof Error
+          ? error.message
+          : 'Ownership verification failed';
       this.logger.error(`Ownership verification failed: ${message}`);
       return {
         owned: false,

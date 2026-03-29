@@ -19,15 +19,16 @@ export class CookieService {
   constructor() {
     this.useSecure = process.env.COOKIE_SECURE !== 'false'; // default true
     const raw = (process.env.COOKIE_SAME_SITE ?? 'lax').toLowerCase();
-    this.sameSite =
-      raw === 'strict' || raw === 'none' ? (raw as 'strict' | 'none') : 'lax';
+    this.sameSite = raw === 'strict' || raw === 'none' ? raw : 'lax';
 
-    const jwtExpires = Number(process.env.JWT_EXPIRES) > 0
-      ? Number(process.env.JWT_EXPIRES)
-      : 3600;
-    const refreshDays = Number(process.env.JWT_REFRESH_EXPIRES_DAYS) > 0
-      ? Number(process.env.JWT_REFRESH_EXPIRES_DAYS)
-      : 14;
+    const jwtExpires =
+      Number(process.env.JWT_EXPIRES) > 0
+        ? Number(process.env.JWT_EXPIRES)
+        : 3600;
+    const refreshDays =
+      Number(process.env.JWT_REFRESH_EXPIRES_DAYS) > 0
+        ? Number(process.env.JWT_REFRESH_EXPIRES_DAYS)
+        : 14;
 
     this.accessTokenTtlMs = jwtExpires * 1000;
     this.refreshTokenTtlMs = refreshDays * 24 * 60 * 60 * 1000;
@@ -47,7 +48,11 @@ export class CookieService {
     res: Response,
     tokens: { accessToken: string; refreshToken?: string },
   ): void {
-    res.cookie('access_token', tokens.accessToken, this.baseOptions(this.accessTokenTtlMs));
+    res.cookie(
+      'access_token',
+      tokens.accessToken,
+      this.baseOptions(this.accessTokenTtlMs),
+    );
 
     if (tokens.refreshToken) {
       res.cookie(

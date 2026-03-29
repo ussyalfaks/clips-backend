@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@fastify/csrf-protection": "^7.1.0",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.0",
@@ -29,10 +30,9 @@
     "@nestjs/passport": "^11.0.3",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/platform-socket.io": "^11.0.1",
+    "@nestjs/swagger": "^8.0.0",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/websockets": "^11.0.1",
-    "@nestjs/swagger": "^8.0.0",
-    "@stellar/stellar-sdk": "^13.0.0",
     "@prisma/client": "^5.20.0",
     "@stellar/stellar-sdk": "^13.3.0",
     "@types/cookie-parser": "^1.4.10",

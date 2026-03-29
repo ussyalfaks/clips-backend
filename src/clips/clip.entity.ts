@@ -44,6 +44,13 @@ export interface Clip {
    * Editable by the user before posting.
    */
   caption?: string;
+  /**
+   * NFT royalty percentage in Basis Points (BPS).
+   * 1000 BPS = 10%, range: 0–1500 BPS (0–15%).
+   * Defaults to 1000 (10%) if not provided.
+   * Used when minting clips as NFTs on Soroban/Stellar.
+   */
+  royaltyBps?: number | null;
   createdAt: Date;
   updatedAt: Date;
 }

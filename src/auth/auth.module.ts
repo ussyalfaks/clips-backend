@@ -12,6 +12,7 @@ import { CookieService } from './cookie.service';
 import { DeviceFingerprintService } from './device-fingerprint.service';
 import { BruteForceProtectionService } from './brute-force-protection.service';
 import { PrismaModule } from '../prisma/prisma.module';
+import { CsrfModule } from '../csrf/csrf.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { PrismaModule } from '../prisma/prisma.module';
         };
       },
     }),
+    CsrfModule,
   ],
   controllers: [AuthController],
   providers: [

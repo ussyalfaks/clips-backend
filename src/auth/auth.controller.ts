@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { CookieService } from './cookie.service';
 import { DeviceFingerprintService } from './device-fingerprint.service';
@@ -25,6 +25,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { CsrfService } from '../csrf/csrf.service';
 
 @Controller('auth')
 export class AuthController {
@@ -32,6 +33,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly cookieService: CookieService,
     private readonly deviceFingerprintService: DeviceFingerprintService,
+    private readonly csrfService: CsrfService,
   ) {}
 
   @Post('signup')
@@ -70,12 +72,15 @@ export class AuthController {
       this.deviceFingerprintService.extractFromRequest(req);
     const fingerprint =
       this.deviceFingerprintService.generateFingerprint(deviceFingerprint);
-    const result = await this.authService.login(dto, fingerprint);
+    const result = await this.authService.login(dto);
+    const csrfToken = this.csrfService.generateToken();
+    this.csrfService.setCsrfCookie(res, csrfToken);
+
     if (useCookies === 'true') {
       this.cookieService.setTokenCookies(res, result.tokens);
-      return { user: result.user };
+      return { user: result.user, csrfToken };
     }
-    return result;
+    return { ...result, csrfToken };
   }
 
   @Get('google')
@@ -86,7 +91,10 @@ export class AuthController {
 
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
-  async googleCallback(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+  async googleCallback(
+    @Req() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const user = req.user;
     const deviceFingerprint =
       this.deviceFingerprintService.extractFromRequest(req);
@@ -99,9 +107,12 @@ export class AuthController {
       },
       fingerprint,
     );
+    const csrfToken = this.csrfService.generateToken();
+    this.csrfService.setCsrfCookie(res, csrfToken);
+
     // Google OAuth always uses cookies (redirect flow — no JS to read a JSON body)
     this.cookieService.setTokenCookies(res, tokens);
-    return { user };
+    return { user, csrfToken };
   }
 
   @Post('magic-link')

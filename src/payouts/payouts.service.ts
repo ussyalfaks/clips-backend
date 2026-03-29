@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, NotFoundException, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 
@@ -13,11 +18,11 @@ export class PayoutsService {
     // 1. Fetch payout record
     const payout = await this.prisma.payout.findUnique({
       where: { id: payoutId },
-      include: { 
+      include: {
         user: {
-          include: { wallets: true }
+          include: { wallets: true },
         },
-        wallet: true 
+        wallet: true,
       },
     });
 
@@ -25,7 +30,11 @@ export class PayoutsService {
       throw new NotFoundException(`Payout with ID ${payoutId} not found`);
     }
 
-    if (payout.status !== 'pending' && payout.status !== 'unpaid' && payout.status !== 'failed') {
+    if (
+      payout.status !== 'pending' &&
+      payout.status !== 'unpaid' &&
+      payout.status !== 'failed'
+    ) {
       throw new BadRequestException(`Payout is already ${payout.status}`);
     }
 
@@ -33,9 +42,13 @@ export class PayoutsService {
     // If payout has a walletId, use that. Otherwise, find the user's Stellar wallet.
     let destinationAddress = payout.wallet?.address;
     if (!destinationAddress) {
-      const stellarWallet = payout.user.wallets.find(w => w.chain.toLowerCase() === 'stellar');
+      const stellarWallet = payout.user.wallets.find(
+        (w) => w.chain.toLowerCase() === 'stellar',
+      );
       if (!stellarWallet) {
-        throw new BadRequestException('User does not have a connected Stellar wallet');
+        throw new BadRequestException(
+          'User does not have a connected Stellar wallet',
+        );
       }
       destinationAddress = stellarWallet.address;
     }
@@ -93,7 +106,9 @@ export class PayoutsService {
       };
     } catch (error) {
       console.error('Failed to prepare Stellar payout:', error);
-      throw new InternalServerErrorException('Failed to build payout transaction XDR');
+      throw new InternalServerErrorException(
+        'Failed to build payout transaction XDR',
+      );
     }
   }
 }

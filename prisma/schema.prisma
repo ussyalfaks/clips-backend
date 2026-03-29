@@ -22,6 +22,7 @@ model User {
   videos        Video[]
   userPlatforms UserPlatform[]
   subscriptions Subscription[]
+  stellarPaymentIntents StellarPaymentIntent[]
   wallets       Wallet[]
   payouts       Payout[]
   magicLinks     MagicLink[]
@@ -68,9 +69,12 @@ model Clip {
   endTime       Float
   duration      Int
   viralityScore Float?
-  metadataUri   String?
+  royaltyBps    Int?
   postStatus    Json?
   postedAt      DateTime?
+  mintAddress   String?
+  mintedAt      DateTime?
+  nftStatus     String    @default("none")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   video         Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
@@ -110,6 +114,7 @@ model Wallet {
   type        String
   connectedAt DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   payouts     Payout[]
 }
@@ -133,15 +138,34 @@ model Payout {
 }
 
 model Subscription {
-  id        Int       @id @default(autoincrement())
-  userId    Int
-  plan      String
-  status    String
-  startDate DateTime
-  endDate   DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  plan          String
+  status        String
+  paymentMethod String   @default("stripe")
+  startDate     DateTime
+  endDate       DateTime?
+  stellarTxHash   String?
+  stellarMemo     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StellarPaymentIntent {
+  id            String   @id @default(cuid())
+  userId        Int
+  amount         Float
+  asset         String
+  destination   String
+  memo          String
+  status        String   @default("pending")
+  expiresAt      DateTime
+  transactionId String?
+  plan          String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model MagicLink {

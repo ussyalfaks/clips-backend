@@ -61,7 +61,8 @@ export class PayoutStatusProcessor extends WorkerHost {
           `Payout ${payout.id} confirmed from Horizon as ${status} (tx=${hash})`,
         );
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'unknown error';
+        const message =
+          error instanceof Error ? error.message : 'unknown error';
         this.logger.warn(
           `Failed Horizon status check for payout ${payout.id} (tx=${hash}): ${message}`,
         );

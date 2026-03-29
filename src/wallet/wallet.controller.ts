@@ -1,8 +1,8 @@
-
 import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   Query,
@@ -86,5 +86,25 @@ export class WalletController {
       userId,
       this.stellarService,
     );
+  }
+
+  /** DELETE /wallets/:id — disconnect a wallet */
+  @Delete(':id')
+  @ApiOperation({ summary: 'Disconnect a wallet with dependency checks' })
+  @ApiResponse({
+    status: 200,
+    description: 'Wallet disconnected successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Cannot disconnect wallet with pending payouts or active NFTs',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Wallet not found',
+  })
+  disconnectWallet(@Param('id') id: string, @Req() req: Request) {
+    const userId = Number((req as any).user?.id ?? 0);
+    return this.walletService.disconnectWallet(Number(id), userId);
   }
 }

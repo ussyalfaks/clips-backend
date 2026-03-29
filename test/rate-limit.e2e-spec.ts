@@ -1,5 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, Controller, Get, Post, Module } from '@nestjs/common';
+import {
+  INestApplication,
+  Controller,
+  Get,
+  Post,
+  Module,
+} from '@nestjs/common';
 import * as request from 'supertest';
 import { ThrottlerModule, ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
@@ -64,11 +70,15 @@ describe('Rate Limiting (e2e)', () => {
   it('should rate limit strict auth endpoint after 5 requests', async () => {
     // 5 requests should pass
     for (let i = 0; i < 5; i++) {
-        const response = await request(app.getHttpServer()).post('/test-throttling/strict');
-        expect(response.status).toBe(201);
+      const response = await request(app.getHttpServer()).post(
+        '/test-throttling/strict',
+      );
+      expect(response.status).toBe(201);
     }
     // 6th request should be rate limited
-    const response = await request(app.getHttpServer()).post('/test-throttling/strict');
+    const response = await request(app.getHttpServer()).post(
+      '/test-throttling/strict',
+    );
     expect(response.status).toBe(429);
     expect(response.header).toHaveProperty('retry-after');
   });
@@ -76,11 +86,15 @@ describe('Rate Limiting (e2e)', () => {
   it('should rate limit default endpoint after 10 requests', async () => {
     // 10 requests should pass
     for (let i = 0; i < 10; i++) {
-        const response = await request(app.getHttpServer()).get('/test-throttling/default');
-        expect(response.status).toBe(200);
+      const response = await request(app.getHttpServer()).get(
+        '/test-throttling/default',
+      );
+      expect(response.status).toBe(200);
     }
     // 11th request should be rate limited
-    const response = await request(app.getHttpServer()).get('/test-throttling/default');
+    const response = await request(app.getHttpServer()).get(
+      '/test-throttling/default',
+    );
     expect(response.status).toBe(429);
     expect(response.header).toHaveProperty('retry-after');
   });

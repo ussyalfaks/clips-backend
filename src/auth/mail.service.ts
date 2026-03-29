@@ -76,7 +76,8 @@ export class MailService {
       `,
     });
 
-    this.logger.log(`Email verification link sent to ${email} — messageId: ${info.messageId}`);
+    this.logger.log(
+      `Email verification link sent to ${email} — messageId: ${info.messageId}`,
+    );
   }
 }
-

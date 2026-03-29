@@ -67,7 +67,9 @@ export class StellarService {
     return {
       found: true,
       successful: Boolean(payload.successful),
-      confirmedAt: payload.created_at ? new Date(payload.created_at) : undefined,
+      confirmedAt: payload.created_at
+        ? new Date(payload.created_at)
+        : undefined,
     };
   }
 
@@ -75,10 +77,14 @@ export class StellarService {
     const server = new Horizon.Server(this.horizonUrl);
     try {
       const account = await server.loadAccount(address);
-      const nativeBalance = account.balances.find((b) => b.asset_type === 'native');
+      const nativeBalance = account.balances.find(
+        (b) => b.asset_type === 'native',
+      );
       return nativeBalance ? parseFloat(nativeBalance.balance) : 0;
     } catch (error) {
-      this.logger.error(`Failed to fetch balance for ${address}: ${error.message}`);
+      this.logger.error(
+        `Failed to fetch balance for ${address}: ${error.message}`,
+      );
       return 0;
     }
   }

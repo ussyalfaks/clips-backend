@@ -4,6 +4,9 @@ import {
   IsOptional,
   IsString,
   ArrayNotEmpty,
+  IsInt,
+  Min,
+  Max,
 } from 'class-validator';
 
 export class BulkUpdateClipsDto {
@@ -32,4 +35,16 @@ export class BulkUpdateClipsDto {
   @IsOptional()
   @IsString()
   caption?: string;
+
+  /**
+   * NFT royalty percentage in Basis Points (BPS).
+   * 1000 BPS = 10%, range: 0–1500 BPS (0–15%).
+   * Used when minting clips as NFTs on Soroban/Stellar.
+   * If not provided, defaults to 1000 (10%) at mint time.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1500)
+  royaltyBps?: number;
 }

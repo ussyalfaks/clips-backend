@@ -19,7 +19,11 @@ import { LoginDto } from './dto/login.dto';
 import * as speakeasy from 'speakeasy';
 import * as QRCode from 'qrcode';
 
-type JwtUser = { id: number; email: string | null; emailVerified?: Date | null };
+type JwtUser = {
+  id: number;
+  email: string | null;
+  emailVerified?: Date | null;
+};
 
 const REFRESH_TOKEN_EXPIRES_DAYS =
   Number(process.env.JWT_REFRESH_EXPIRES_DAYS) > 0
@@ -60,7 +64,11 @@ export class AuthService {
         if (!existingByEmail.provider || !existingByEmail.providerId) {
           return this.prisma.user.update({
             where: { id: existingByEmail.id },
-            data: { provider, providerId, emailVerified: existingByEmail.emailVerified || new Date() },
+            data: {
+              provider,
+              providerId,
+              emailVerified: existingByEmail.emailVerified || new Date(),
+            },
           });
         }
         return existingByEmail;
@@ -80,7 +88,11 @@ export class AuthService {
   }
 
   issueTokens(user: JwtUser) {
-    const payload = { sub: user.id, email: user.email, emailVerified: !!user.emailVerified };
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      emailVerified: !!user.emailVerified,
+    };
     const accessToken = this.jwtService.sign(payload);
     return { accessToken };
   }
@@ -169,7 +181,11 @@ export class AuthService {
     });
 
     const { user } = stored;
-    return this.issueTokensWithRefresh({ id: user.id, email: user.email, emailVerified: user.emailVerified });
+    return this.issueTokensWithRefresh({
+      id: user.id,
+      email: user.email,
+      emailVerified: user.emailVerified,
+    });
   }
 
   async logout(rawToken: string) {
@@ -218,7 +234,10 @@ export class AuthService {
 
     // Generate Email Verification Token
     const rawToken = crypto.randomBytes(32).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     await this.prisma.emailVerificationToken.create({
@@ -248,18 +267,24 @@ export class AuthService {
   }
 
   async verifyEmail(rawToken: string) {
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
 
-    const verificationToken = await this.prisma.emailVerificationToken.findUnique({
-      where: { tokenHash },
-    });
+    const verificationToken =
+      await this.prisma.emailVerificationToken.findUnique({
+        where: { tokenHash },
+      });
 
     if (!verificationToken) {
       throw new NotFoundException('Invalid or expired verification link');
     }
 
     if (verificationToken.usedAt) {
-      throw new UnauthorizedException('Verification link has already been used');
+      throw new UnauthorizedException(
+        'Verification link has already been used',
+      );
     }
 
     if (verificationToken.expiresAt < new Date()) {
@@ -275,7 +300,7 @@ export class AuthService {
       this.prisma.user.update({
         where: { id: verificationToken.userId },
         data: { emailVerified: new Date() },
-      })
+      }),
     ]);
 
     return { message: 'Email successfully verified' };
@@ -329,7 +354,11 @@ export class AuthService {
       }
     }
 
-    const tokens = await this.issueTokensWithRefresh({ id: user.id, email: user.email, emailVerified: user.emailVerified });
+    const tokens = await this.issueTokensWithRefresh({
+      id: user.id,
+      email: user.email,
+      emailVerified: user.emailVerified,
+    });
     return {
       user: {
         id: user.id,
@@ -398,7 +427,11 @@ export class AuthService {
     });
 
     const { user } = magicLink;
-    const tokens = await this.issueTokensWithRefresh({ id: user.id, email: user.email, emailVerified: user.emailVerified });
+    const tokens = await this.issueTokensWithRefresh({
+      id: user.id,
+      email: user.email,
+      emailVerified: user.emailVerified,
+    });
 
     return {
       user: {

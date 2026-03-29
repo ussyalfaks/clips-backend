@@ -2,7 +2,11 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
-export type JwtPayload = { sub: number; email: string | null; emailVerified?: boolean };
+export type JwtPayload = {
+  sub: number;
+  email: string | null;
+  emailVerified?: boolean;
+};
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
@@ -17,8 +21,14 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   validate(payload: JwtPayload) {
     if (!payload?.sub) throw new UnauthorizedException();
     if (payload.emailVerified === false) {
-      throw new UnauthorizedException('Please verify your email to access this feature');
+      throw new UnauthorizedException(
+        'Please verify your email to access this feature',
+      );
     }
-    return { id: payload.sub, email: payload.email, emailVerified: payload.emailVerified };
+    return {
+      id: payload.sub,
+      email: payload.email,
+      emailVerified: payload.emailVerified,
+    };
   }
 }
