@@ -19,6 +19,8 @@ import { MintModule } from './mint/mint.module';
 import { PayoutModule } from './payout/payout.module';
 import { StellarModule } from './stellar/stellar.module';
 import { CsrfModule } from './csrf/csrf.module';
+import { EncryptionModule } from './encryption/encryption.module';
+import { UserPlatformModule } from './user-platform/user-platform.module';
 
 @Module({
   imports: [
@@ -65,6 +67,8 @@ import { CsrfModule } from './csrf/csrf.module';
     PayoutModule,
     StellarModule,
     CsrfModule,
+    EncryptionModule,
+    UserPlatformModule,
   ],
   controllers: [AppController],
   providers: [
