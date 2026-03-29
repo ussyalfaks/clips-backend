@@ -68,6 +68,9 @@ model Clip {
   endTime       Float
   duration      Int
   viralityScore Float?
+  royaltyBps    Int?
+  metadataUri   String?
+  mintAddress   String?
   postStatus    Json?
   postedAt      DateTime?
   createdAt     DateTime  @default(now())
