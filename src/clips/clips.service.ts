@@ -179,9 +179,9 @@ export class ClipsService {
     userId: number,
     dto: BulkUpdateClipsDto,
   ): Promise<BulkUpdateResult> {
-    if (dto.selected === undefined && dto.postStatus === undefined) {
+    if (dto.selected === undefined && dto.postStatus === undefined && dto.royaltyBps === undefined && dto.caption === undefined) {
       throw new BadRequestException(
-        'At least one of selected or postStatus must be provided',
+        'At least one of selected, postStatus, royaltyBps, or caption must be provided',
       );
     }
 
@@ -219,6 +219,7 @@ export class ClipsService {
     if (dto.selected !== undefined) patch.selected = dto.selected;
     if (dto.postStatus !== undefined) patch.postStatus = dto.postStatus;
     if (dto.caption !== undefined) patch.caption = dto.caption;
+    if (dto.royaltyBps !== undefined) patch.royaltyBps = dto.royaltyBps;
 
     if (this.seededClips.size > 0) {
       clips.forEach((clip) => {
@@ -273,6 +274,7 @@ export class ClipsService {
       updates: {
         ...(dto.selected !== undefined && { selected: dto.selected }),
         ...(dto.postStatus !== undefined && { postStatus: dto.postStatus }),
+        ...(dto.royaltyBps !== undefined && { royaltyBps: dto.royaltyBps }),
       },
       notFoundIds,
       allClipsProcessed,

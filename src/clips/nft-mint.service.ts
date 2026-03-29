@@ -111,11 +111,21 @@ export class NftMintService {
       const contract = new StellarSdk.Contract(this.CONTRACT_ID);
 
       // Build the operation using contract.call
-      // 4. Build Royalty Map ScVal
+      // 4. Build Royalty Map ScVal with creator royalty from clip
+      // Use custom royaltyBps from clip, default to 1000 (10%) if not provided
+      const creatorRoyaltyBps = clip.royaltyBps ?? 1000;
+      
+      // Validate royaltyBps is within acceptable range (0-1500 = 0-15%)
+      if (creatorRoyaltyBps < 0 || creatorRoyaltyBps > 1500) {
+        throw new BadRequestException(
+          `Invalid royaltyBps: ${creatorRoyaltyBps}. Must be between 0 and 1500.`,
+        );
+      }
+
       const royaltyMapEntries = [
         {
           key: StellarSdk.Address.fromString(userWallet).toScVal(),
-          value: StellarSdk.nativeToScVal(this.CREATOR_ROYALTY_BPS, {
+          value: StellarSdk.nativeToScVal(creatorRoyaltyBps, {
             type: 'u32',
           }),
         },
