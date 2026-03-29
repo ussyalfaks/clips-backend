@@ -70,6 +70,13 @@ export class NftMintService {
       );
     }
 
+    // Prevent double minting - check if already minted or minting in progress
+    if (clip.nftStatus !== 'none' && clip.nftStatus !== 'failed') {
+      throw new BadRequestException(
+        `Clip is already minted or in minting process (status: ${clip.nftStatus}). Cannot mint twice.`,
+      );
+    }
+
     // Basic error handling: clip not ready
     if (!clip.clipUrl) {
       throw new BadRequestException('Clip is not ready for minting (missing URL)');

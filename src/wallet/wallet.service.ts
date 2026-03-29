@@ -22,13 +22,15 @@ export class WalletService {
   }
 
   async getWalletsByUserId(userId: number) {
-    const wallets = await this.prisma.wallet.findMany({ where: { userId } });
+    const wallets = await this.prisma.wallet.findMany({ 
+      where: { userId, deletedAt: null } 
+    });
     return wallets.map((w) => this.applyMask(w));
   }
 
   async getWalletById(id: number, userId: number) {
     const wallet = await this.prisma.wallet.findFirst({
-      where: { id, userId },
+      where: { id, userId, deletedAt: null },
     });
     if (!wallet) throw new NotFoundException(`Wallet ${id} not found`);
     return this.applyMask(wallet);
@@ -104,5 +106,51 @@ export class WalletService {
       asset: 'XLM',
       warning,
     };
+  }
+
+  /**
+   * Disconnect a wallet with ownership & dependency checks
+   * Prevents disconnect if active NFTs or pending payouts exist
+   */
+  async disconnectWallet(id: number, userId: number) {
+    // 1. Find wallet with ownership check
+    const wallet = await this.prisma.wallet.findFirst({
+      where: { id, userId, deletedAt: null },
+    });
+    if (!wallet) throw new NotFoundException(`Wallet ${id} not found`);
+
+    // 2. Check for active payouts (status not final)
+    const activePayout = await this.prisma.payout.findFirst({
+      where: {
+        walletId: id,
+        status: { notIn: ['completed', 'failed', 'cancelled'] },
+      },
+    });
+    if (activePayout) {
+      throw new BadRequestException(
+        'Cannot disconnect wallet with pending payouts. Please wait for pending transactions to complete.',
+      );
+    }
+
+    // 3. Check for active NFTs (status not "none" or "failed")
+    const activeNft = await this.prisma.clip.findFirst({
+      where: {
+        video: { userId },
+        nftStatus: { notIn: ['none', 'failed'] },
+      },
+    });
+    if (activeNft) {
+      throw new BadRequestException(
+        'Cannot disconnect wallet with active NFTs. Please wait for minting to complete or cancel pending NFT operations.',
+      );
+    }
+
+    // 4. Soft delete
+    await this.prisma.wallet.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+
+    return { success: true, message: 'Wallet disconnected successfully' };
   }
 }
