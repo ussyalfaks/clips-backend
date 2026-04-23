@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ClipsModule } from './clips/clips.module';
+import { NftModule } from './nft/nft.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { BullModule } from '@nestjs/bullmq';
 
@@ -16,6 +17,7 @@ import { BullModule } from '@nestjs/bullmq';
       },
     }),
     ClipsModule,
+    NftModule,
   ],
   controllers: [AppController],
   providers: [AppService],
