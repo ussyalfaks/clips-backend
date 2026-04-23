@@ -2,6 +2,7 @@ import {
   Injectable,
   Logger,
   BadRequestException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -95,85 +96,79 @@ export class NftMintService {
   }
 
   /**
-   * Prepares a Soroban transaction for minting a clip as an NFT.
-   * Following OpenZeppelin Soroban NFT template: mint(to: Address, token_id: u128, uri: String)
+   * Verify that a clip belongs to the given user before allowing a mint.
+   * Throws ForbiddenException if the clip doesn't exist or isn't owned by userId.
    */
-  async prepareMintTx(clipId: number, userId: number) {
-    this.logger.log(
-      `Preparing mint transaction for clipId=${clipId}, userId=${userId}`,
-    );
-
-    // 1. Fetch clip and validate ownership/status
+  async validateClipOwner(clipId: number, userId: number): Promise<void> {
     const clip = await this.prisma.clip.findUnique({
       where: { id: clipId },
       include: { video: true },
     });
+    if (!clip) {
+      throw new NotFoundException(`Clip with ID ${clipId} not found`);
+    }
+    if (clip.video.userId !== userId) {
+      throw new ForbiddenException('You do not own this clip');
+    }
+  }
+
+  /**
+   * Prepares (but does not sign) a Soroban transaction for minting a clip as an NFT.
+   * Following OpenZeppelin Soroban NFT template: mint(to: Address, token_id: u128, uri: String)
+   *
+   * @param clipId - ID of the clip to mint
+   * @param walletAddress - Stellar wallet address that will receive the NFT
+   * @returns XDR string for the frontend to sign
+   */
+  async prepareMintTx(clipId: number, walletAddress: string) {
+    this.logger.log(
+      `Preparing mint transaction for clipId=${clipId}, wallet=${walletAddress}`,
+    );
+
+    // Validate Stellar wallet address format
+    const addressCheck = this.stellarService.validateAddress(walletAddress);
+    if (!addressCheck.valid) {
+      throw new BadRequestException(
+        `Invalid wallet address: ${addressCheck.message}`,
+      );
+    }
+
+    // Fetch clip
+    const clip = await this.prisma.clip.findUnique({ where: { id: clipId } });
 
     if (!clip) {
       throw new NotFoundException(`Clip with ID ${clipId} not found`);
     }
 
-    if (clip.video.userId !== userId) {
-      throw new BadRequestException(
-        'You do not own the video this clip belongs to',
-      );
-    }
-
-    // Prevent double minting - check if already minted or minting in progress
+    // Prevent double minting
     if (clip.nftStatus !== 'none' && clip.nftStatus !== 'failed') {
       throw new BadRequestException(
-        `Clip is already minted or in minting process (status: ${clip.nftStatus}). Cannot mint twice.`,
+        `Clip is already minted or minting in progress (status: ${clip.nftStatus})`,
       );
     }
 
-    // Basic error handling: clip not ready
     if (!clip.clipUrl) {
       throw new BadRequestException(
         'Clip is not ready for minting (missing URL)',
       );
     }
 
-    // 2. Fetch user's Stellar wallet
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        wallets: {
-          where: {
-            chain: {
-              equals: 'stellar',
-              mode: 'insensitive',
-            },
-          },
-        },
-      },
-    });
-
-    if (!user || !user.wallets || user.wallets.length === 0) {
-      throw new BadRequestException('User has no Stellar wallet connected');
-    }
-
-    const userWallet = user.wallets[0].address;
-
     try {
       const metadataUri =
         clip.metadataUri ?? (await this.uploadMetadataToIPFS(clip.id)).metadataUri;
 
-      // 3. Build Soroban transaction
       const networkPassphrase = this.stellarService.networkPassphrase;
       const rpcUrl = this.stellarService.rpcUrl;
       const server = new StellarSdk.rpc.Server(rpcUrl);
 
-      // Load source account to get sequence number
-      const sourceAccount = await server.getAccount(userWallet);
+      // Load source account to get current sequence number
+      const sourceAccount = await server.getAccount(walletAddress);
 
       const contract = new StellarSdk.Contract(this.CONTRACT_ID);
 
-      // Build the operation using contract.call
-      // 4. Build Royalty Map ScVal with creator royalty from clip
-      // Use custom royaltyBps from clip, default to 1000 (10%) if not provided
-      const creatorRoyaltyBps = clip.royaltyBps ?? 1000;
-      
-      // Validate royaltyBps is within acceptable range (0-1500 = 0-15%)
+      // Use custom royaltyBps from clip, default to 1000 bps (10%)
+      const creatorRoyaltyBps = clip.royaltyBps ?? this.CREATOR_ROYALTY_BPS;
+
       if (creatorRoyaltyBps < 0 || creatorRoyaltyBps > 1500) {
         throw new BadRequestException(
           `Invalid royaltyBps: ${creatorRoyaltyBps}. Must be between 0 and 1500.`,
@@ -182,29 +177,25 @@ export class NftMintService {
 
       const royaltyMapEntries = [
         {
-          key: StellarSdk.Address.fromString(userWallet).toScVal(),
-          value: StellarSdk.nativeToScVal(creatorRoyaltyBps, {
-            type: 'u32',
-          }),
+          key: StellarSdk.Address.fromString(walletAddress).toScVal(),
+          value: StellarSdk.nativeToScVal(creatorRoyaltyBps, { type: 'u32' }),
         },
         {
           key: StellarSdk.Address.fromString(this.PLATFORM_WALLET).toScVal(),
-          value: StellarSdk.nativeToScVal(this.PLATFORM_ROYALTY_BPS, {
-            type: 'u32',
-          }),
+          value: StellarSdk.nativeToScVal(this.PLATFORM_ROYALTY_BPS, { type: 'u32' }),
         },
       ];
 
       const op = contract.call(
         'mint',
-        StellarSdk.Address.fromString(userWallet).toScVal(), // to: Address
+        StellarSdk.Address.fromString(walletAddress).toScVal(),   // to: Address
         StellarSdk.nativeToScVal(BigInt(clip.id), { type: 'u128' }), // token_id: u128
-        StellarSdk.nativeToScVal(metadataUri, { type: 'string' }), // uri: String
+        StellarSdk.nativeToScVal(metadataUri, { type: 'string' }),   // uri: String
         StellarSdk.nativeToScVal(royaltyMapEntries, { type: 'map' }), // royalties: Map<Address, u32>
       );
 
       const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
-        fee: '10000', // Base fee for Soroban transactions
+        fee: '10000',
         networkPassphrase,
       })
         .addOperation(op)
@@ -213,19 +204,24 @@ export class NftMintService {
 
       const xdr = tx.toXDR();
 
-      // Log transaction XDR for debugging as requested
-      this.logger.log(`Transaction XDR for clip ${clipId}: ${xdr}`);
+      this.logger.log(`Transaction XDR prepared for clip ${clipId}`);
 
       return {
         xdr,
         clipId: clip.id,
         tokenId: clip.id,
         metadataUri,
-        to: userWallet,
+        to: walletAddress,
         contractId: this.CONTRACT_ID,
         network: this.stellarService.network,
       };
     } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
       const message =
         error instanceof Error ? error.message : 'unknown minting error';
       const stack = error instanceof Error ? error.stack : undefined;

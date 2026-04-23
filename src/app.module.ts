@@ -12,23 +12,11 @@ import { VideosModule } from './videos/videos.module';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { JobsModule } from './jobs/jobs.module';
-
-import { PayoutsModule } from './payouts/payouts.module';
-
-import { WalletModule } from './wallet/wallet.module';
-import { MintModule } from './mint/mint.module';
-import { PayoutModule } from './payout/payout.module';
 import { StellarModule } from './stellar/stellar.module';
-import { NftModule } from './nft/nft.module';
-
 import { CsrfModule } from './csrf/csrf.module';
 import { EncryptionModule } from './encryption/encryption.module';
 import { UserPlatformModule } from './user-platform/user-platform.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
-
-import { NftModule } from './nft/nft.module';
-
-
 
 @Module({
   imports: [
@@ -70,18 +58,12 @@ import { NftModule } from './nft/nft.module';
     ClipsModule,
     VideosModule,
     JobsModule,
-    WalletModule,
-    MintModule,
-    PayoutModule,
     StellarModule,
-
     CsrfModule,
     EncryptionModule,
     UserPlatformModule,
     SubscriptionsModule,
-
     NftModule,
-
   ],
   controllers: [AppController],
   providers: [
